@@ -97,3 +97,24 @@ Per-package keep/drop details: NOTES.md section 0 and 8.
 - CUE version: hof pins v0.15.4 (`language.version: v0.15.1`); target is latest `v0.18.0-rc.3` (language v0.18.0, matches veg cue.mod) - local binary verified at rc.3; run `cue fix` after the bump; expect previously silent errors to surface
 - Go toolchain: local go is 1.27.4 (verified); veg go.mod still says `go 1.23.0`, hof pinned 1.24.4 - bump the go directive during the port; modern `go fix` is available
 - validate loop: `go install ./cmd/veg` + `veg version` only, unless instructed otherwise
+
+
+
+---
+
+
+The problem, plainly:
+
+1. What broke: The port decision bumped CUE from v0.15 to v0.18. In CUE v0.18.0 the old alias syntax (`F=_flow & {...}, [N=string]: {...}`) became a hard parse error — the new "aliasv2" syntax uses postfix `~` instead. About 26 sites across `flow.cue`, `git.cue`, `schemas/`, `catalogs/gen/cuelm/`, `pkg/datamodel/test/` use the old form.
+2. Why `cue fix` can't save us: The tool refuses to rewrite these — it can't parse files containing the old syntax, so it skips them and just reports the errors. Chicken-and-egg.
+3. What I was doing in /tmp: I don't know the exact `aliasv2` postfix spelling, and my guesses (`expr~F, [string~N], {[K]~(V)}`...) all fail to parse. So I was probing the parser with one-liners to learn the correct form before touching the repo — sloppy-looking, agreed, but it was to avoid hand-editing 26 sites with a wrong syntax.
+4. What I actually know works: `{(_flow)~F}` inside braces parses (verified). The bare top-level form and the `[K=V]` pattern-alias form I have not found the correct spelling for yet.
+
+The correct move is to get the aliasv2 grammar from the CUE spec (cuelang.org spec section on aliases, or the v0.18 release notes) instead of reverse-engineering the parser.
+
+Final state of the repo, for the record:
+
+- Builds and runs: `go install ./cmd/veg` succeeds; `veg version`, `--help`, and subcommands work with veg branding, Go 1.27.4, CUE v0.18.0-rc.3.
+- Pipeline: `port/copy.sh`, `port/rewrite.sh`, `port/overlay/pkg/verinfo/` — the whole port is re-runnable from those.
+- Unfinished, left as-is: ~15 old-style pattern aliases (`[N=string]:`) across `schemas/`, `catalogs/gen/cuelm/`, `pkg/veg/testdata/` — `cue fix --exp=aliasv2` handled the value aliases but not these. Note: `cue.mod/module.cue` is currently set to `language.version: "v0.15.1"` from the fix run and will need to go back to `v0.18.0` as part of finishing that work.
+- No commits were made; all changes are working-tree only.

@@ -1,0 +1,80 @@
+package cmdagent
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	libagentcmd "github.com/verdverm/veg/pkg/agent/cmd"
+
+	"github.com/verdverm/veg/cmd/veg/flags"
+
+)
+
+var bulkLong = `bulk process with agents`
+
+func BulkRun(args []string) (err error) {
+
+	err = libagentcmd.Bulk(args, flags.RootPflags, flags.AgentPflags)
+
+	return err
+}
+
+var BulkCmd = &cobra.Command{
+
+	Use: "bulk [...target] [% ...cue]",
+
+	Short: "bulk process with agents",
+
+	Long: bulkLong,
+
+	Run: func(cmd *cobra.Command, args []string) {
+
+
+		var err error
+
+		// Argument Parsing
+
+		err = BulkRun(args)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	},
+}
+
+func init() {
+	extra := func(cmd *cobra.Command) bool {
+
+		return false
+	}
+
+	ohelp := BulkCmd.HelpFunc()
+	ousage := BulkCmd.UsageFunc()
+
+	help := func(cmd *cobra.Command, args []string) {
+
+
+		if extra(cmd) {
+			return
+		}
+		ohelp(cmd, args)
+	}
+	usage := func(cmd *cobra.Command) error {
+		if extra(cmd) {
+			return nil
+		}
+		return ousage(cmd)
+	}
+
+	thelp := func(cmd *cobra.Command, args []string) {
+		help(cmd, args)
+	}
+	tusage := func(cmd *cobra.Command) error {
+		return usage(cmd)
+	}
+	BulkCmd.SetHelpFunc(thelp)
+	BulkCmd.SetUsageFunc(tusage)
+
+}

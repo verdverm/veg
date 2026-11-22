@@ -1,0 +1,5 @@
+b.str: incomplete value string:
+    ./partial.cue:8:7
+sum: incomplete value 1 | 2
+b.idx: invalid non-ground value string (must be concrete string):
+    ./partial.cue:8:7

@@ -1,0 +1,48 @@
+--- a/pkg/cuetils/attrs.go
++++ b/pkg/cuetils/attrs.go
++++ pkg/cuetils/attrs.go	2026-11-22 14:42:53
+@@ -29,7 +29,7 @@
+ 			v := val.LookupPath(cue.ParsePath(a))
+ 			s, err := FormatCue(v)
+ 			if err != nil {
+-				fmt.Fprintln(bufStdout, "Fmt error: %s", err)
++				fmt.Fprintf(bufStdout, "Fmt error: %s\n", err)
+ 			}
+ 			fmt.Fprintf(bufStdout, "%s: %v\n", a, s)
+ 		}
+--- a/pkg/cuetils/runtime.go
++++ b/pkg/cuetils/runtime.go
++++ pkg/cuetils/runtime.go	2026-11-22 14:42:53
+@@ -197,7 +197,7 @@
+ 				s += CueErrorToString(e)
+ 			}
+ 		}
+-		return fmt.Errorf(s)
++		return fmt.Errorf("%s", s)
+ 	}
+ 
+ 	return nil
+--- a/pkg/cuetils/tsuite.go
++++ b/pkg/cuetils/tsuite.go
++++ pkg/cuetils/tsuite.go	2026-11-22 14:42:53
+@@ -182,7 +182,7 @@
+ 		fmt.Println("-------- ACTUAL --------")
+ 		fmt.Println(retSyn)
+ 		fmt.Println("========================")
+-		return fmt.Errorf("Result did not match expected in:", name)
++		return fmt.Errorf("Result did not match expected in: %s", name)
+ 	}
+ 
+ 	return nil
+--- a/pkg/repos/git/fetch.go
++++ b/pkg/repos/git/fetch.go
++++ pkg/repos/git/fetch.go	2026-11-22 14:42:53
+@@ -92,7 +92,7 @@
+ 
+ 			cerr := cmd.Run()
+ 			if cerr != nil {
+-				fmt.Printf("warn: while sync'n %s: %v\n", url, err, cerr)
++				fmt.Printf("warn: while sync'n %s: %v\n", url, cerr)
+ 			}
+ 
+ 		}

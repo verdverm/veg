@@ -1,0 +1,5 @@
+translations.hello.lang: incomplete value string:
+    ./vet.cue:3:11
+skip: field not allowed:
+    ./data.yaml:20:1
+    ./vet.cue:1:8

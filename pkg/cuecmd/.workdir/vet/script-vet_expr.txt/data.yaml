@@ -1,0 +1,20 @@
+# translated messages
+translations:
+  hello:
+    lang: gsw
+    text: Grüetzi
+---
+translations:
+  hello:
+    text: Hoi
+---
+translations:
+  hello:
+    lang: no
+    text: Hallo
+---
+translations:
+  hello:
+    lang: nl
+    text: Hallo
+skip: true

@@ -1,0 +1,5 @@
+c: field not allowed:
+    ./foo.yaml:2:2
+    ./schema.cue:1:1
+    ./schema.cue:3:7
+    ./schema.cue:7:1

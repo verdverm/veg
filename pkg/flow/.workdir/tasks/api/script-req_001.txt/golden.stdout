@@ -1,0 +1,13 @@
+{
+  "args": {
+    "cow": "moo"
+  },
+  "headers": {
+    "x-forwarded-proto": "https",
+    "x-forwarded-port": "443",
+    "host": "postman-echo.com",
+    "accept-encoding": "gzip",
+    "user-agent": "Go-http-client/2.0"
+  },
+  "url": "https://postman-echo.com/get?cow=moo"
+}
