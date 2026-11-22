@@ -6,7 +6,7 @@ set -euo pipefail
 DST=~/verdverm/veg
 cd "$DST"
 
-TARGETS=$(find pkg cmd/veg schemas design catalogs examples veg.cue flow.cue git.cue test.cue \
+TARGETS=$(find pkg cmd/veg schemas design catalogs examples .veg veg.cue envs.cue flow.cue git.cue test.cue \
   -type f \( -name '*.go' -o -name '*.cue' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.tmpl' -o -name '*.txt' -o -name '*.mod' \) 2>/dev/null)
 
 # ---------- Go / CUE import paths (ordered: specific -> generic) ----------
@@ -59,7 +59,7 @@ for f in $GOFILES; do
 done
 
 # ---------- CUE: module paths + identifiers ----------
-CUEFILES=$(find pkg cmd/veg schemas design catalogs examples veg.cue flow.cue git.cue test.cue -type f -name '*.cue' 2>/dev/null)
+CUEFILES=$(find pkg cmd/veg schemas design catalogs examples .veg veg.cue envs.cue flow.cue git.cue test.cue -type f -name '*.cue' 2>/dev/null)
 for f in $CUEFILES; do
   sed -i '' \
     -e 's|github.com/verdverm/vegmod-cli|github.com/verdverm/veg/catalogs/gen/cli|g' \
@@ -86,6 +86,7 @@ done
 # ---------- CUE: aliasv2 pattern aliases [K=T]: -> [T]~(K, _): ----------
 for f in $CUEFILES; do
   sed -i '' \
+    -e 's|^\([A-Z][A-Z_0-9]*\)=\([a-z][A-Za-z_0-9]*\): |\2~\1: |' \
     -e 's|\[\([A-Za-z_][A-Za-z_0-9]*\)=\(string\)\]|[\2]~(\1, _)|g' \
     -e 's|\[\([A-Za-z_][A-Za-z_0-9]*\)= \(!="[^"*]*"\)\]|[\2]~(\1, _)|g' \
     "$f"
@@ -163,6 +164,16 @@ done
 for f in $CUEFILES; do
   sed -i '' -e 's|\$hof|$veg|g' -e 's|[[:<:]]hofmods[[:>:]]|vegmods|g' "$f"
 done
+
+# .veg files: package veg (half-done rebrand in source) collides with root package veg -> import cycle
+for f in $(find .veg -type f -name '*.cue'); do
+  sed -i '' 's|^package veg$|package config|' "$f"
+done
+# envs.cue (hof's root veg.cue): re-point the link at the renamed package
+sed -i '' \
+  -e 's|github.com/verdverm/veg/.veg:veg|github.com/verdverm/veg/.veg:config|' \
+  -e 's|^veg$|veg: config|' \
+  envs.cue
 
 # ---------- CUE fix: value aliases (F=_flow) -> let clauses via cue fix ----------
 # cue fix parses at the module's language version, so drop to v0.15.1 for the run

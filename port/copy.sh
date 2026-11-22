@@ -12,7 +12,9 @@ cd "$DST"
 # ---------- outputs this script owns (wiped on each run) ----------
 rm -rf pkg cmd/veg schemas design catalogs examples ci
 rm -rf cmd/veg/verinfo  # replaced by overlay pkg/verinfo (stdlib)
-rm -f veg.cue flow.cue git.cue test.cue
+rm -f veg.cue flow.cue git.cue test.cue envs.cue
+# envs.cue = hof's root veg.cue (the .veg link file); hof.cue -> veg.cue (codegen root)
+rm -rf .veg  # re-copied below; runtime data kept via rsync exclude
 
 # ---------- excluded from source ----------
 # dirs: website/docs (not copied at all), tcell TUI, connector, script harness, ga
@@ -73,6 +75,9 @@ rsync -a "${EXCL[@]}" "$SRC/examples/" "$DST/examples/"
 
 rsync -a "$SRC/hof.cue" "$DST/veg.cue"
 
+# .veg config dir (exclude data/: runtime-reserved DBs/artifacts, preserved on re-runs)
+rsync -a --delete --exclude '/data/' "$SRC/.veg/" "$DST/.veg/"
+
 # lib/hof -> pkg/veg (dir rename; hof.go -> veg.go)
 rm -rf "$DST/pkg/veg"
 mv "$DST/pkg/hof" "$DST/pkg/veg"
@@ -85,6 +90,7 @@ mv "$DST/pkg/flow/tasks/veg/hof.go" "$DST/pkg/flow/tasks/veg/veg.go" 2>/dev/null
 rsync -a "$SRC/flow.cue" "$DST/flow.cue"
 rsync -a "$SRC/git.cue" "$DST/git.cue"
 rsync -a "$SRC/test.cue" "$DST/test.cue"
+rsync -a "$SRC/veg.cue" "$DST/envs.cue"
 
 # ---------- overlay: hand-written files owned by the port ----------
 rsync -a "$DST/port/overlay/" "$DST/"
