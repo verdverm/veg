@@ -1,7 +1,11 @@
 # NOTES.md - hof -> veg port reference
 
 Source repo: `~/hof/hof` (module `github.com/hofstadter-io/hof`, go 1.24.4).
-Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/docs, tcell TUI, script tests.
+Dest repo: `~/verdverm/veg` (module `github.com/verdverm/veg`, go.mod + cue.mod already initialized). Task: port core binary elements; exclude website/docs, tcell TUI, script harness.
+
+Path convention: `lib/...` -> `pkg/...` (NO "go" segment), `lib/hof` -> `pkg/veg`, `flow/` -> `pkg/flow`, `cmd/hof` -> `cmd/veg`.
+Phasing: mechanical rename first with ZERO dependency changes (versions and replaces), EXCEPT CUE bumps to latest `v0.18.0-rc.3` and Go updates to 1.27.4 (both local binaries verified). Dagger/ADK updates and config revamp are a separate later phase.
+Tooling: `go fix` is core to the port (mechanical Go API migration); `cue fix` is the CUE equivalent (rewrites old syntax/APIs, run after the CUE bump).
 
 ## 0. Quick orientation map
 
@@ -25,14 +29,16 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 | Schemas (CUE) | `schemas/` | `#hof` metadata schema tree (env, dm, gen, agentic, create, prompt, common) |
 | CLI design | `design/` | drives CLI codegen; `design/main.cue` has Module/Outdir; `design/cmds/*.cue` |
 | Env catalogs | `catalogs/env/{bases,packs,utils}` | container packs for `veg env` |
-| Config dirs | `.hof/` (only shadow + .gitignore) vs `.veg/` (agent/env config, `package veg`) | `.hof/shadow` = old codegen artifacts; `.veg` is the live agent config |
+| Gen catalogs | `catalogs/gen/{cli,cuelm}` | `cli` = full in-tree hofmod-cli copy (schema/templates/creators/gen), imports still external; `cuelm` = separate module (go.mod) |
+| Config dirs | `.hof/` (only shadow + .gitignore) vs `.veg/` (agent/env config, `package veg`) | DECIDED: `.veg` single dir, shadow at `.veg/shadow`, `.hof` dropped |
 
 ## 1. CLI structure & self-codegen
 
 - Entry: `cmd/hof/main.go` -> `cmd/hof/cmd.RunExit()` (root.go has `RootCmd`, `RootInit()`, `RunExit/Int/Err`; pprof via `HOF_CPU_PROFILE`).
 - Every `cmd/hof/cmd/*.go` and `cmd/hof/flags/*.go` is GENERATED. Source of truth: `design/` (CUE). `design/main.cue` defines `CLI: schema.Cli & {...}` with Name/Module/Outdir; per-command specs in `design/cmds/*.cue` each have `Body:"err = libX.Y(...)"` strings that become generated cobra Run funcs.
-- Driven by `hof.cue` (repo root): `@gen(cli,hof)`, `WatchGlobs:["./design/**/*"]`, `WatchExec: go install ./cmd/hof`. Generator schema+templates come from EXTERNAL CUE module `github.com/hofstadter-io/hofmod-cli` (declared in `cue.mod/module.cue`; NOT vendored in-tree - lives in CUE module cache).
-- Implication for port: to keep mechanical port, either (a) fork/port hofmod-cli too, or (b) hand-port the generated cmd files for now and revisit. Renaming Module in `design/main.cue` regenerates everything.
+- Driven by `hof.cue` (repo root): `@gen(cli,hof)`, `WatchGlobs:["./design/**/*"]`, `WatchExec: go install ./cmd/hof`. CORRECTION: hofmod-cli IS already copied in-tree at `catalogs/gen/cli/` (schema/, templates/, creators/, gen/, partials/) - but its CUE files still import `github.com/hofstadter-io/hofmod-cli/...` and `github.com/hofstadter-io/schemas/gen`, so the external module in `cue.mod/module.cue` is still the resolved source. Port = copy `catalogs/gen/cli` + rewrite imports to the veg module path.
+- DECIDED: hand-port the generated cmd files for now; port `catalogs/gen/cli` with rewritten imports so self-codegen works again. Keep-list: keep feedback/update; DROP `run` (script-based) and `tui` (tcell; charm stays reachable via agent). Renaming Module in `design/main.cue` regenerates everything.
+- `cmd/hof/ga/` sends Google Analytics (measurement_id G-6CYEVMZL4R) via `ga.SendCommandPath` in every generated Run func. DECIDED: nuke entirely - also `catalogs/gen/cli/templates/ga.go` and any design/ references.
 - `.hof/shadow/cli/**` = shadow copies of generated files (bookkeeping, not source; excluded per port rules).
 - Flags pattern: `XxxFlagpole` struct + `SetupXxxFlags` + package var `XxxFlags` (see `cmd/hof/flags/root.go` for `RootPflagpole`, includes `-p/--package`).
 - Command -> backing package: create->`lib/create`; datamodel->`lib/datamodel/cmd`; gen->`lib/gen/cmd`; flow->`flow/cmd`; fmt->`lib/fmt`; def/eval/export/vet->`lib/cuecmd`; mod->cue proxy; extension->`lib/extension`; agent->`lib/agent/cmd` (`libagentcmd`); env->`lib/env/cmd` (`libenvcmd`); tui->`lib/tui/cmd` (DROP, rewire to charm or drop); run->adhoc runtime; version->`lib/container`.
@@ -50,7 +56,7 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 
 - `type Hof struct` (`hof.go`): `ID`, `Label`, `Path`, `APIVersion`, `Metadata`, `Memo`, per-feature sub-structs `Datamodel`, `Gen`, `Flow`(+`Pool`,`Print`), `Env`, `Agentic`, `Extra map[string]any`.
 - `ParseHof[T](cue.Value)`: `val.LookupPath(cue.ParsePath("#hof"))` -> decode -> `upgradeAttrs(node, label)` converts sugar attrs (`@gen()`, `@flow()`, `@task()`, `@env()`, `@agent()`, `@pool()`, `@dm()`) into `Hof` fields. `FindHofs`/`FindHofsOrig` walk tree into `R.Nodes`.
-- `Node[T]` generic wrapper (Hof, Value, parent/children); `Upgrade[any,T]` converts to typed node. This is the heart of `#hof` -> `#veg` rename (also rename Go field `Hof` -> `Veg`, struct `lib/hof` -> `lib/veg` package decision needed).
+- `Node[T]` generic wrapper (Hof, Value, parent/children); `Upgrade[any,T]` converts to typed node. This is the heart of `#hof` -> `#veg` rename. DECIDED: `lib/hof` -> `pkg/veg`, Go `Hof` -> `Veg`.
 
 ## 4. Codegen (`lib/gen`)
 
@@ -67,14 +73,15 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 - Built on `cuelang.org/go/tools/flow`. `flow/flow/flow.go`: `type Flow struct{ *hof.Node[Flow]; Root,Orig,Final cue.Value; FlowCtx *flowctx.Context; Ctrl *cueflow.Controller }`. `Start()` -> cueflow.Config{IgnoreConcrete:true, FindHiddenTasks:true, UpdateFunc}, `tasker.NewTasker`, run.
 - `flow/context/context.go`: `Context` (per-flow-exec state: RootValue, FlowStack, Middlewares, TaskRegistry *sync.Map, Pools, CUELock, Mailbox). `Middleware{ Apply(*Context, RunnerFunc) RunnerFunc }`; `Register(key, RunnerFunc)` / `Lookup`.
 - `flow/tasker/tasker.go`: for each value `hof.ParseHof`, check `node.Hof.Flow.Task != ""`, lookup runner, apply middlewares in REVERSE order, run, `Fill(value)` results back into CUE.
-- Task ops registered in `flow/tasks/reg.go` `RegisterDefaults`: noop, nest, api.Call/Serve, csp.Chan, cue.Format, db.* (sqlite/postgres), gen.* (uuid/slug/cuid...), hof.Template, kv.Mem, msg.* (irc/watermill), os.* (Exec/ReadFile/WriteFile/Glob/Getenv/Watch/FileLock...), prompt.Prompt, st.* (Diff/Insert/Mask/Patch/Pick/Replace/Upsert via `lib/structural`). Schemas embedded (`embed.go`) + in `schemas/`.
+- Task ops registered in `flow/tasks/reg.go` `RegisterDefaults`: noop, nest, api.Call/Serve, csp.Chan, cue.Format, db.* (sqlite/postgres), gen.* (uuid/slug/cuid...), hof.Template, kv.Mem, msg.* (irc/watermill), os.* (Exec/ReadFile/WriteFile/Glob/Getenv/Watch/FileLock...), prompt.Prompt, st.* (Diff/Insert/Mask/Patch/Pick/Replace/Upsert via `lib/structural`). Schemas embedded (`embed.go`) + in `schemas/`. DECIDED: drop IRC, KEEP watermill (important for pkg/flow workflows).
 - Middlewares (`flow/middleware/`): `defaults.go` currently enables info.NewProgress + sync.NewPool only (print/bookkeeping/dummy commented out). `sync/pool.go` implements `@pool()`.
 - Command: `flow/cmd/run.go` - workerpool over `R.Workflows`, `-B/--bulk src@dst`, `--stats`. Selection via `@flow` attr / `-F` flag.
 - Chat: NOT in flow. `lib/runtime/chat.go` is fully commented (dead). Live chat = `veg agent chat` -> `lib/agent/cmd.Chat` -> bubbletea TUI.
 
 ## 6. Agent system (ADK) - `lib/agent/`
 
-- ADK: `google.golang.org/adk v0.3.0` with `replace google.golang.org/adk => ../adk` (LOCAL SIBLING CHECKOUT - find out what patches it carries before moving to upstream v1+/v2).
+- ADK: `google.golang.org/adk v0.3.0` with `replace google.golang.org/adk => ../adk` (LOCAL SIBLING CHECKOUT). DECIDED: keep the replace for the first pass; investigate patches vs upstream v1+ later (patches likely still needed). GOTCHA: the patched checkout is at `~/hof/adk`; `~/verdverm/adk` does not exist yet and must be placed there for the build.
+- AUTH DECISION: veg must not manage Google/Gemini auth. Use the OpenAI-compatible model path against a user-run gateway that holds credentials. `lib/agent/models/openai.go` already supports `BaseURL` + `APIKey` (+ extra headers); `vertex.go` uses GOOGLE_* env / ADC - deprioritize or gate it.
 - `lib/agent/veg-node.go`: `Agentic` struct (the `#hof agentic` node type). `lib/agent/config/types.go`: `Config{Presets, Models, Agents, Tools, Toolsets, Environs, Embeds (EmbedDir ".veg/embed"), AgentsMD, Templates}`; `Agent{Name,Model,Instruction,Tools,Toolsets,Mcp,SubAgents,AutoLoadWorkdir,Environ,AgentsMD}`.
 - `lib/agent/agents/cue.go`: CUE->ADK bridge. `OldAgenticCUE(agentDir, models)` loads CUE dir (package `veg`, `.veg/` -> `./` prefix); `BuildAgent` -> `llmagent.New(llmagent.Config{...})`; `buildTools` (tools/cache, tools/filesys, tools/exec); `buildMcp` (github/tavily/quickbooks); `addCallbacks` (ADK Before/After hooks); `RenderInstructions` via `lib/templates` with agentsMd/state injection.
 - Models: `lib/agent/models/{vertex.go, openai.go}` - vertex via `adk/model/gemini`, openai is hand-written ADK `model.LLM` wrapping `openai-go/v3`. Both ADK-native (keep).
@@ -83,9 +90,10 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 - Services: `session/` (adk session + gorm), `environ/` (Dagger-backed virtual envs; singleton env store, gorm + OCI registry versioning; sets `_EXPERIMENTAL_DAGGER_RUNNER_HOST=container://veg-dagger-engine`), `artifact/` (blob store), `container.go` (stores interface).
 - Tools: `lib/agent/tools/{cache,exec,filesys,mathy.go,mcp/*}`.
 - Cmd: `lib/agent/cmd/{main.go,runtime.go,serve.go,chat.go,bulk.go,list.go,eval.go}` + `cmd/hof/cmd/agent/*` cobra proxies.
-- `.veg/` dir at repo root = live agent/env config (`agents.cue`, `models.cue`, `tools.cue`, `envs.cue`, `spaces.cue`, `presets.cue`, `containers.cue`, `services.cue`, `commands.cue`, `flags.cue`, `embed/`, `tasks/`, `plans/`), all `package veg` but still importing `github.com/hofstadter-io/hof/...` (mid-rebrand). `.hof/` only contains `.gitignore` + `shadow/` (old codegen artifacts). Merge plan: `.veg` becomes the single dir; shadow regeneration moves under it or is dropped.
-- `.hof` hardcoded paths scattered: `lib/datamodel/history.go:17` (`.hof/dm`), `lib/yagu/exec.go:32,38`, `lib/gen/cmd/runtime.go:83` (SHADOW_DIR), `lib/tui/modules/eval/persist.go:43` (dropped anyway), flow middleware defaults (commented).
-- LEGACY to EXCLUDE: `lib/prompt/` is NOT LLM - it is `AlecAivazis/survey/v2` interactive questionnaires used by `lib/create` and `flow/tasks/prompt`. The AGENTS exclusion means legacy prompt-based LLM paths (none found as separate SDK; all live LLM is ADK). Decide with user whether survey prompts stay (needed by `create`). `schemas/prompt/` + `flow/tasks/prompt/` depend on it. `hack/genai.go` is scratch.
+- `.veg/` dir at repo root = live agent/env config (`agents.cue`, `models.cue`, `tools.cue`, `envs.cue`, `spaces.cue`, `presets.cue`, `containers.cue`, `services.cue`, `commands.cue`, `flags.cue`, `embed/`, `tasks/`, `plans/`), all `package veg` but still importing `github.com/hofstadter-io/hof/...` (mid-rebrand). `.hof/` only contains `.gitignore` + `shadow/` (old codegen artifacts). Merge plan (DECIDED): `.veg` becomes the single dir; shadow regenerates at `.veg/shadow`; `.hof` disappears.
+- `.hof` hardcoded paths scattered: `lib/datamodel/history.go:17` (`.hof/dm` -> `.veg/dm`), `lib/yagu/exec.go:32,38`, `lib/gen/cmd/runtime.go:83` (SHADOW_DIR -> `.veg/shadow`), `lib/tui/modules/eval/persist.go:43` (dropped anyway), flow middleware defaults (commented).
+- Agent sqlite DB location (verified): in-project DBs live at `.veg/data/*.db` (hof repo has first/second/third-veg.db + artifacts/ + memories/); global default is `UserConfigDir/veg/data/veg.db` via `lib/config/init.go` (`VEG_DATABASE_TYPE` default sqlite, `VEG_DATABASE_CONN` / `VEG_USER_DATA_DIR` overrides). DECIDED: `.veg` stays flat; reserved dirs `.veg/{shadow,dm,data}` - users/CUE can nest freely otherwise.
+- `lib/prompt/` is NOT LLM - it is `AlecAivazis/survey/v2` interactive questionnaires (single file `prompt.go`) used by `lib/create` and `flow/tasks/prompt`. DECIDED: KEEP. Verified: no legacy LLM SDK packages remain outside `lib/agent`; all live LLM is ADK. `hack/genai.go` is scratch (exclude).
 - `schemas/agentic/agent.cue` still uses `#hof agentic kind:"agent"` with stale comment - rename to `#veg`.
 
 ## 7. Dagger / containers
@@ -93,6 +101,7 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 - Two distinct things: `lib/container/` = docker/nerdctl/podman CLI wrapper (used by `lib/fmt` formatters); Dagger = `lib/env/` + `lib/agent/services/environ/`.
 - CLEAN Dagger layer: `lib/env/dag/` (`container.go, exec.go, filesys.go, host.go, git.go, volume.go, service.go, export.go, diff.go, sbom.go, ...`) - imports only public `dagger.io/dagger`. Safe port.
 - HACK: `lib/env/incept/` copies Dagger engine client internals (imports `github.com/dagger/dagger/engine/client`, `slog`, `telemetry`, `dagql/dagui/idtui`) so hof can run dagger "in itself" for pretty TUI logs. Supported by `go.mod` replace: `github.com/dagger/dagger/engine/distconsts => ./lib/env/incept/distconsts` (copied subtree with its own go.mod; hand-copied `consts.go` from Dagger repo). Commented-out `// replace github.com/dagger/dagger => ../dagger`.
+- DECIDED: first pass ports Dagger as-is (incept + replace included), no version changes; reassess against modern stable Dagger in the later phase.
 - Versions: SDK `dagger.io/dagger v0.20.0`, engine internals `v0.20.1-0.20260227...`, engine image const `VEG_DAGGER_ENGINE_DEFAULT_IMAGE = registry.dagger.io/engine:v0.19.10` (`lib/consts/veg.go`) - drift to reconcile. Dagger is stable now; evaluate dropping `incept` + distconsts replace for upstream.
 - Dagger surfaces in CLI via `veg env` only (no direct dagger subcommand proxy).
 
@@ -100,20 +109,23 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 
 - `lib/structural/` - CUE value surgery (require/insert/upsert/replace/pick/walk/mask/patch/diff). CUE-only. Clean, core.
 - `lib/diff3/` - self-contained 3-way merge (from node-diff3/Synchrotron). Clean.
-- `lib/datamodel/` - CUE datamodel snapshots/history/diff/tree/log. Couples to `.hof/dm` path + `lib/hof` nodes.
+- `lib/datamodel/` - CUE datamodel snapshots/history/diff/tree/log. Couples to `.hof/dm` path + `lib/hof` nodes. DECIDED: keep in first port; history path becomes `.veg/dm`.
 - `lib/watch/` - fsnotify + debouncer, takes a Runner func. Small.
 - `lib/yagu/` - grab bag: exec, dir, glob, copy, git, netrc, ssh, http, port, uuid, hash, browser, stripansi, table, billy. Generic; fix hardcoded `.hof` paths.
 - `lib/fmt/` - formatters: built-in (cue/json/yaml/toml/xml) + container-based external via `lib/container`. Couples to runtime Env.
-- `lib/connector/` - reflection-based method-call Connector graph, standalone.
+- `lib/connector/` - reflection-based method-call Connector graph. DECIDED: DROP. Verified: only consumers are `lib/tui/modules/*` (excluded tcell TUI).
 - `lib/gotils/` - par, queue, txtar, lockedfile, intern, diff, auth/netrc. Utility.
-- `lib/repos/` - module/repo fetching: `remote/` (git vs OCI Kind, mirrors), `git/` (go-git), `oci/` (go-containerregistry), `cache/`. Used by `lib/create` + `hof mod`.
-- `lib/database/` - only a readme (aspirational). Skip or minimal.
-- `lib/cuetils/` - CUE helpers: CueRuntime, printing, path/attr helpers, `argsplit.go`. Note duplication with lib/runtime.
+- `lib/repos/` - module/repo fetching: `remote/` (git vs OCI Kind, mirrors), `git/` (go-git), `oci/` (go-containerregistry), `cache/`. Verified consumers: `lib/create` AND `lib/fmt/cmd.go`; NOT `mod` (mod.go is a pure `cue mod` proxy via `cuelang.org/go/cmd/cue/cmd`). KEEP for create (and fmt).
+- `lib/database/` - readme-only. Content: aspirational unified data layer used by `datastore`, `datamodel` & `flow` - CGO-free SQL drivers (pgx, cznic/sqlite, go-mysql, ...), migrations, NoSQL, object storage (-> flow/tasks/objs), cache (-> flow/tasks/kv), watermill messaging (-> flow/tasks/msg). Carry as design note; relates to the `datamodel` command.
+- `lib/cuetils/` - CUE helpers: CueRuntime, printing, path/attr helpers, `argsplit.go`. Widely used (flow, create, datamodel, cuecmd, agent runtime, ci). DECIDED: keep useful funcs, remove the CueRuntime load-logic duplication with lib/runtime.
+- `lib/config/` - tiny: `VegConfig{SysDataDir, UserDataDir, DatabaseType, DatabaseConn, RegistryData, DaggerEngineConfig}` + init. Starting point for the phase-2 config revamp (CUE-like merging, system-level override / protected from lower-level updates).
+- `lib/container/` + `lib/fmt/` DECIDED: keep, core subsystems.
 
 ## 9. Assets & consumption
 
 - All CUE imports use full Go module paths (`github.com/hofstadter-io/hof/schemas/env`), resolved via `cue.mod/module.cue` `source.kind: "self"`. Renaming module => must update every CUE import in schemas/catalogs/design/examples too. No `go:embed` of these dirs found.
-- `schemas/` defines `#hof` metadata schema tree (apiVersion v1beta1). Note two distinct "schemas": repo-local dir vs external CUE package `github.com/hofstadter-io/schemas` (used by design/cmds/datamodel.cue, lib/gen/cmd/init.go). External hofmod-cli + hofstadter-io/schemas are separate repos - cannot rename in-tree.
+- cue.mod `language.version`: veg v0.18.0, hof v0.15.1, hof go.mod CUE pin v0.15.4. DECIDED: bump CUE to the LATEST `v0.18.0-rc.3` (local binary verified, language v0.18.0) - CUE is core, previously silent errors may now be caught, get out in front during the port. Keep veg cue.mod at v0.18.0, run `cue fix` after the bump. Dagger/ADK are NOT safe to bump yet.
+- `schemas/` defines `#hof` metadata schema tree (apiVersion v1beta1). DECIDED: repo-root `schemas/` is the ONLY source of truth; external CUE module `github.com/hofstadter-io/schemas` goes away - rewrite its imports to root schemas. Local `schemas/dm` already has `fields/` + `sql/` matching the external import paths (`dm`, `dm/fields`, `dm/sql`, `common`, `gen`); verify equivalence during the rewrite. External module consumers: `design/cmds/datamodel.cue`, `lib/gen/cmd/init.go`, `catalogs/gen/cli/{gen,creators}`, test fixtures. Eventually published as a CUE module from a naked repo `verdverm/schema`.
 - `catalogs/env/` = container packs (alpine/wolfi/rocky/debian; node/go/python/cue; postgres; dagger/docker/registry...). Needed by `veg env`.
 - `examples/` = fixtures (optional). `design/` = CLI codegen (core). `docs/`, `docs-old/`, website = EXCLUDE.
 - `hof.io` appears only in fixtures, docs, and `lib/gen/cmd/init.go` default module.
@@ -121,7 +133,8 @@ Dest repo: `~/verdverm/veg`. Task: port core binary elements; exclude website/do
 ## 10. Build/test
 
 - `make hof` = `go install ./cmd/hof`; `make hack`; `workflow_%` = `hof export ci/gha/*.cue -> .github/workflows`; `goreleaser.yml` from `cmd/hof/goreleaser.cue` (ghcr.io/hofstadter-io/hof images - rebrand site). Makefile already has `veg-registry`/`veg-dagger-engine` container names and `/.veg/` paths.
-- EXCLUDED test framework: `script/` (runtime + tests). Script tests to drop: `flow/flow_test.go`, `test/render/render_test.go`, `lib/datamodel/test/testscript_test.go`, `lib/fmt/test/00_test.go`, `lib/cuecmd/cli_test.go`, `cmd/hof/cmd/run.go` (imports hof/script). `test.cue` (root) is the CUE-flow harness.
+- Toolchain (verified, user-updated): local go 1.27.4, local cue v0.18.0-rc.3. veg go.mod still `go 1.23.0`, hof pins go 1.24.4 - bump veg's go directive during the port. Modern `go fix` is core to the port; `cue fix` runs after the CUE bump.
+- Test harness `script/` itself is EXCLUDED, but DECIDED: migrate its tests to `github.com/rogpeppe/go-internal/testscript` (maintained fork of the same pattern; already an indirect dep at v1.14.1). Tests to migrate: `flow/flow_test.go`, `test/render/render_test.go`, `lib/datamodel/test/testscript_test.go`, `lib/fmt/test/00_test.go`, `lib/cuecmd/cli_test.go`; `cmd/hof/cmd/run.go` (imports hof/script) rewires or drops. `test.cue` (root) is the CUE-flow harness.
 - Real Go tests surviving rename (module path only): `lib/create/create_test.go`, `lib/gotils/**`, `lib/env/incept/auth/auth_test.go`, `lib/connector/connector_test.go`, `lib/repos/**`, `lib/yagu/par`.
 - Validate loop (per hof AGENTS.md): `go install ./cmd/hof` + `hof version` only, unless instructed.
 
@@ -133,16 +146,53 @@ Largest clusters (by grep volume): `lib/`, `cmd/`, `schemas/`, `design/`, then `
 3. `#hof` -> `#veg` in CUE + `Hof` -> `Veg` in Go (lib/hof + all consumers).
 4. `.hof` -> `.veg` hardcoded paths (datamodel, yagu, gen shadow, init.go hof.io).
 5. Container/image names: `ghcr.io/hofstadter-io/hof`, `hofstadter.io` emails in Dockerfiles, binary name `hof`.
-6. External modules: fork/replace `hofmod-cli` (CLI codegen), decide fate of `hofstadter-io/schemas` CUE module.
+6. External modules: `hofmod-cli` already copied at `catalogs/gen/cli` (rewrite imports); `hofstadter-io/schemas` eliminated in favor of root `schemas/` (later published as `verdverm/schema`).
+7. Google Analytics: remove `cmd/hof/ga` + all `ga.SendCommandPath` calls + `catalogs/gen/cli/templates/ga.go`.
 Half-done already: `VEG_*` env vars, `.veg` Makefile paths, `// [[ hof2veg ]]` markers, `.veg` CUE files `package veg`.
 
-## 12. Open questions for user
+## 12. Decisions (resolved) and remaining open questions
 
-1. `.hof` vs `.veg` merge: confirm `.veg` is the single dir; does gen shadow move to `.veg/shadow`?
-2. `lib/prompt` (survey questionnaires) - keep for `create`/flow, or drop with legacy prompt path?
-3. `hofmod-cli` CLI codegen: fork it into veg, or hand-port generated cmd files for now?
-4. ADK `../adk` local replace: what patches does it carry; move to upstream `google.golang.org/adk` v1+?
-5. Dagger `incept` + distconsts vendored hack: drop in favor of modern stable Dagger, or port as-is?
-6. `lib/container` + `lib/fmt` formatters: in scope for first port? (catalogs/formatters are heavy)
-7. `msg.*` (irc/watermill), `db.*` flow tasks: keep or trim in flow tasks?
-8. Rename Go package `lib/hof` -> `lib/veg`? (AGENTS says pkg/go/... layout: `~/verdverm/veg/pkg/go/...`)
+Resolved (from user review):
+
+1. `.veg` is the single config dir; gen shadow moves to `.veg/shadow`; `.hof` disappears.
+2. `lib/prompt` (survey questionnaires) stays - needed by create + flow prompt task.
+3. CLI codegen: hand-port generated files for now; port the in-tree hofmod-cli copy at `catalogs/gen/cli` with rewritten imports; keep-list: keep feedback/update, drop run/tui.
+4. ADK: keep local `../adk` replace for first pass; investigate patches vs upstream v1+ later (likely still needed). Auth: no Google/Gemini auth management in veg - OpenAI-compatible path via user's gateway (holds credentials).
+5. Dagger: port as-is for first pass (incept + distconsts replace); reassess later. NO dependency version/replace changes until the rename is done - separate phases.
+6. `lib/container` + `lib/fmt`: keep, core subsystems.
+7. Flow tasks: drop IRC; keep the rest.
+8. Layout: `pkg/...` with NO "go" segment; `lib/hof` -> `pkg/veg` (`Hof` -> `Veg`).
+
+Additional decisions from review:
+
+- `lib/connector`: drop (verified only tcell TUI uses it).
+- `lib/cuetils`: keep useful helpers, dedupe load logic vs runtime.
+- `lib/repos`: keep for create (also used by fmt); mod is already a cue proxy.
+- `lib/database`: carry readme as design note (unified data layer across datastore/datamodel/flow).
+- Config revamp (phase 2): CUE-like merging with system-level override protection; `lib/config/veg.go` is the current minimal seed.
+- Script tests: migrate to `rogpeppe/go-internal` testscript instead of dropping.
+- TUI: rewire `veg tui` to charm; eventually lift charm TUI out of agent scope.
+
+Remaining open questions (round 2 - all answered):
+
+1. CLI keep-list: keep feedback/update; drop `run` and `tui` commands.
+2. External `hofstadter-io/schemas`: eliminated as a source of truth - root `schemas/` wins; published later as a CUE module from naked repo `verdverm/schema`.
+3. `msg.watermill`: keep - important for workflows (pkg/flow).
+4. Google Analytics: nuke entirely.
+5. CUE version: bump to latest `v0.18.0-rc.3` during the port (see round 3 below); Dagger and ADK are NOT safe to bump yet.
+6. `datamodel`: keep in first port.
+7. `.veg` layout: keep flat; reserved dirs `.veg/{shadow,dm,data}` (data = agent sqlite DBs; users/CUE may nest freely).
+
+Porting tool directives (from user):
+
+- `go fix` should be core to the port.
+- `cue fix` is nearly the same and exists for similar purposes (run after the CUE bump).
+- The CUE version pinned in go.mod differs from the local `cue` binary - resolved by bumping to latest v0.18.0-rc.3.
+
+Small confirmations (round 3 - all answered):
+
+1. Vendor path: keep plural `catalogs/gen/cli`.
+2. CUE bump target: go for the LATEST `v0.18.0-rc.3` (not alpha.2) - little issue anticipated for CUE specifically, but previously silent errors may now be caught; doing it with the port since CUE is so core.
+3. Go: update as well - user has updated both local binaries: go 1.27.4 and cue v0.18.0-rc.3 (verified).
+
+No open questions remain - ready to start the mechanical port (phase 1).
