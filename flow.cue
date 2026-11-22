@@ -93,7 +93,7 @@ build: {
 		cli: {
 			_cond
 			#after:  {$gen: F.gen}
-			shouldi: F._shouldi & {globs: ["go.*", "cmd/", "flow", "lib/", "schema/", "script/"]}
+			shouldi: F._shouldi & {globs: ["go.*", "cmd/", "flow", "pkg/", "schema/", "script/"]}
 			run:     "go install ./cmd/veg"
 		}
 

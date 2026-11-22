@@ -157,7 +157,7 @@ ctr: {
 fmtr: {
 	[string]~(f,_): [string]~(k,_): {@env(), name: "fmtr-\(f)-\(k)"}
 	black: {
-		src: env.#HostDir & {@env(fmt-black-src), path: "lib/fmt/tools/black"}
+		src: env.#HostDir & {@env(fmt-black-src), path: "pkg/fmt/tools/black"}
 		img: env.#Container & {
 			@env(fmt-black-img)
 			from: bases.debian13.default
@@ -176,7 +176,7 @@ fmtr: {
 		}
 	}
 	prettier: {
-		src: env.#HostDir & {@env(fmt-prettier-src), path: "lib/fmt/tools/prettier"}
+		src: env.#HostDir & {@env(fmt-prettier-src), path: "pkg/fmt/tools/prettier"}
 		img: env.#Container & {
 			@env(fmt-prettier-img)
 			from: bases.debian13.default

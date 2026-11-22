@@ -48,6 +48,25 @@ if [ $# -gt 0 ]; then
 fi
 
 FAILS=0
+
+# known issue: flags.arch (@tag(arch,var=arch)) has no default and is not
+# auto-injected; dist targets need it concrete. Derive from the machine,
+# without assuming go is installed.
+case "$(uname -m)" in
+  arm64|aarch64) ARCH=arm64 ;;
+  x86_64)        ARCH=amd64 ;;
+  *)             ARCH="" ;;
+esac
+SYNC_ARGS=()
+if [ -n "$ARCH" ]; then
+  SYNC_ARGS=(-t "arch=$ARCH")
+fi
+
+echo "== veg env sync dist-"
+if ! veg env sync dist- ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}; then
+  FAILS=$((FAILS+1))
+fi
+
 for p in "${RUNNABLE[@]}"; do
   echo "== go test $p"
   if ! go test "$p"; then
@@ -57,7 +76,7 @@ done
 
 echo
 if [ $FAILS -gt 0 ]; then
-  echo "$FAILS package(s) FAILED"
+  echo "$FAILS check(s) FAILED"
   exit 1
 fi
 echo "ALL TESTS PASSED"

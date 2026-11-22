@@ -83,6 +83,11 @@ for f in $(find catalogs/gen/cli/creators/templates -type f -name '*.cue'); do
   sed -i '' 's|github.com/verdverm/veg/catalogs/gen/cli|github.com/verdverm/vegmod-cli|g' "$f"
 done
 
+# ---------- string path references: lib/ -> pkg/ (dir paths, globs, tags) ----------
+for f in $CUEFILES; do
+  sed -i '' 's|"lib/|"pkg/|g' "$f"
+done
+
 # ---------- CUE: aliasv2 pattern aliases [K=T]: -> [T]~(K, _): ----------
 for f in $CUEFILES; do
   sed -i '' \

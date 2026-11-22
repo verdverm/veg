@@ -52,7 +52,7 @@ src: {
 			"examples/env",
 			"flow/tasks/*.cue",
 			"flow/tasks/*/*.cue",
-			"lib/env/common",
+			"pkg/env/common",
 			"SECURITY.md",
 			"README.md",
 			"AGENTS.md",
@@ -95,9 +95,9 @@ secrets: {
 		path: "~/.kube"
 	}
 
-	google: env.#Secret & {
-		@env(shh-google)
-		name:   "google-api-key"
-		source: "GOOGLE_API_KEY"
-	}
+	// google: env.#Secret & {
+	// 	@env(shh-google)
+	// 	name:   "google-api-key"
+	// 	source: "GOOGLE_API_KEY"
+	// }
 }

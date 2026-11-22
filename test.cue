@@ -50,7 +50,7 @@ watchTest: {
 		@task(fs.Watch)
 		first: true
 		globs: [
-			"lib/structural/**/*.*",
+			"pkg/structural/**/*.*",
 		]
 		handler: {
 			event?: _
@@ -71,7 +71,7 @@ tests: {
 		@flow(test/one)
 
 		test: string | *"TestModAuthdApikeysTests" @tag(test)
-		dir:  string | *"lib/mod"                  @tag(dir)
+		dir:  string | *"pkg/mod"                  @tag(dir)
 
 		prt: {text: "testing: \(test)\n"} @task(os.Stdout)
 
@@ -89,7 +89,7 @@ tests: {
 	flow: {
 		@flow(test/flow)
 		run: GoTest & {
-			// dir: "lib/flow" // panics, segfault
+			// dir: "pkg/flow" // panics, segfault
 			dir: "flow"
 		}
 	}
@@ -97,7 +97,7 @@ tests: {
 	dm: {
 		@flow(test/dm)
 		run: GoTest & {
-			dir: "lib/datamodel/test"
+			dir: "pkg/datamodel/test"
 		}
 	}
 
@@ -144,14 +144,14 @@ tests: {
 	st: {
 		@flow(test/st)
 		run: GoTest & {
-			dir: "lib/structural"
+			dir: "pkg/structural"
 		}
 	}
 
 	mod: {
 		@flow(test/mod)
 		run: GoTest & {
-			dir: "lib/mod"
+			dir: "pkg/mod"
 		}
 	}
 	fmt: {
@@ -164,7 +164,7 @@ tests: {
 		all: {
 			@flow(test/cue)
 			run: GoTest & {
-				dir: "lib/cuecmd"
+				dir: "pkg/cuecmd"
 			}
 		}
 
@@ -173,7 +173,7 @@ tests: {
 			run: {
 				@task(os.Exec)
 				cmd: ["bash", "-c", _script]
-				dir: "lib/cuecmd"
+				dir: "pkg/cuecmd"
 				_script: """
 					rm -rf .workdir
 					go test -cover -run Eval ./
@@ -188,7 +188,7 @@ tests: {
 				run: {
 					@task(os.Exec)
 					cmd: ["bash", "-c", _script]
-					dir: "lib/cuecmd"
+					dir: "pkg/cuecmd"
 					_script: """
 						rm -rf .workdir
 						go test -cover -run \(K) ./

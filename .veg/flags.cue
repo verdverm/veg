@@ -7,7 +7,7 @@ flags: {
 	// todo, change this to "." when we move something to the index, if we ever really do?
 	disk:   string | *"."             @tag(disk)
 	src:    "repo" | *"disk" | string @tag(src,short=repo|disk)
-	ref:    string | *"_next"         @tag(ref)
+	ref:    string | *"main"          @tag(ref)
 	adk:    string | *"../adk"        @tag(adk)
 	dagger: string | *"../dagger"     @tag(dagger)
 
