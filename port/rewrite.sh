@@ -6,8 +6,8 @@ set -euo pipefail
 DST=~/verdverm/veg
 cd "$DST"
 
-TARGETS=$(find pkg cmd/veg schemas design catalogs examples .veg veg.cue envs.cue flow.cue git.cue test.cue \
-  -type f \( -name '*.go' -o -name '*.cue' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.tmpl' -o -name '*.txt' -o -name '*.mod' \) 2>/dev/null)
+TARGETS=$(find pkg cmd/veg schemas design catalogs examples extensions .veg veg.cue envs.cue flow.cue git.cue test.cue \
+  -type f \( -name '*.go' -o -name '*.cue' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.tmpl' -o -name '*.txt' -o -name '*.mod' -o -name '*.ts' -o -name '*.json' -o -name '*.html' \) 2>/dev/null)
 
 # ---------- Go / CUE import paths (ordered: specific -> generic) ----------
 for f in $TARGETS; do
@@ -198,6 +198,21 @@ sed -i '' 's|case "hof":|case "veg":|' pkg/veg/find.go
 # lib/ root-level files (lib/cmd.go, lib/feedback.go): package lib -> package pkg
 sed -i '' 's|^package lib$|package pkg|' pkg/cmd.go pkg/feedback.go
 sed -i '' 's|"github.com/verdverm/veg/lib"|"github.com/verdverm/veg/pkg"|; s|lib\.SendFeedback|pkg.SendFeedback|g' cmd/veg/cmd/feedback.go
+
+# root pnpm workspace: rename, and trim members to what veg ships
+# (docs is excluded from the port; the atproto example never existed)
+sed -i '' \
+  -e 's|"name": "hof"|"name": "veg"|' \
+  package.json
+sed -i '' \
+  -e '/- .docs./d' \
+  -e '/examples\/env\/atproto/d' \
+  pnpm-workspace.yaml
+
+# ---------- extensions: binary-name rebrand in TS/JSON ----------
+for f in $(find extensions -type f \( -name '*.ts' -o -name '*.json' -o -name '*.cue' -o -name '*.md' \) 2>/dev/null); do
+  sed -i '' -e 's|[[:<:]]hof[[:>:]]|veg|g' -e 's|hofstadter-io|verdverm|g' "$f"
+done
 
 # ---------- .hof paths -> .veg ----------
 for f in $TARGETS; do

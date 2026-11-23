@@ -13,8 +13,6 @@ cd "$DST"
 rm -rf pkg cmd/veg schemas design catalogs examples ci
 rm -rf cmd/veg/verinfo  # replaced by overlay pkg/verinfo (stdlib)
 rm -f veg.cue flow.cue git.cue test.cue envs.cue
-# envs.cue = hof's root veg.cue (the .veg link file); hof.cue -> veg.cue (codegen root)
-rm -rf .veg  # re-copied below; runtime data kept via rsync exclude
 
 # ---------- excluded from source ----------
 # dirs: website/docs (not copied at all), tcell TUI, connector, script harness, ga
@@ -30,7 +28,6 @@ EXCL=(
   --exclude 'images'
   --exclude 'notes'
   --exclude 'repro'
-  --exclude 'extensions'
   --exclude '/tui'
   --exclude '/connector'
   --exclude '/test'
@@ -75,8 +72,15 @@ rsync -a "${EXCL[@]}" "$SRC/examples/" "$DST/examples/"
 
 rsync -a "$SRC/hof.cue" "$DST/veg.cue"
 
-# .veg config dir (exclude data/: runtime-reserved DBs/artifacts, preserved on re-runs)
-rsync -a --delete --exclude '/data/' "$SRC/.veg/" "$DST/.veg/"
+# root pnpm workspace files (drive extensions/vscode build via `pnpm vscode:build`)
+rsync -a "$SRC/package.json" "$SRC/pnpm-workspace.yaml" "$SRC/pnpm-lock.yaml" "$DST/"
+
+rm -rf .veg-data.tmp
+if [ -d .veg/data ]; then mv .veg/data .veg-data.tmp; fi
+rm -rf .veg
+rsync -a "$SRC/.veg/" .veg/
+[ -d .veg-data.tmp ] && mv .veg-data.tmp .veg/data
+rm -f port/patches/.rejects
 
 # lib/hof -> pkg/veg (dir rename; hof.go -> veg.go)
 rm -rf "$DST/pkg/veg"
@@ -92,13 +96,19 @@ rsync -a "$SRC/git.cue" "$DST/git.cue"
 rsync -a "$SRC/test.cue" "$DST/test.cue"
 rsync -a "$SRC/veg.cue" "$DST/envs.cue"
 
+rsync -a --delete \
+  --exclude 'node_modules' --exclude 'out' --exclude '.vscode-test' \
+  "$SRC/extensions/" "$DST/extensions/"
+# out/ is build output, rebuilt via pnpm; node_modules is installed locally
+
 # ---------- overlay: hand-written files owned by the port ----------
 rsync -a "$DST/port/overlay/" "$DST/"
 
 # ---------- patches: hand edits, applied in order ----------
 shopt -s nullglob
 for p in "$DST"/port/patches/*.patch; do
-  patch -s -p1 -d "$DST" < "$p"
+  # exit 1 = hunks already applied (benign on re-runs, --forward skips), 2 = real failure
+  patch -s -p1 --forward -r "$DST/port/patches/.rejects" -d "$DST" < "$p" || [ $? -eq 1 ]
 done
 
 echo "copy done"

@@ -1,0 +1,30 @@
+Local .veg config preferences (hand edits, not part of the mechanical port):
+- default ref main (not hof's _next)
+- google secret block commented out
+
+Applied to copy.sh output before rewrite.sh. Idempotent via patch --forward.
+--- a/.veg/flags.cue
++++ b/.veg/flags.cue
+@@ -8,4 +8,4 @@
+ 	disk:   string | *"."             @tag(disk)
+ 	src:    "repo" | *"disk" | string @tag(src,short=repo|disk)
+-	ref:    string | *"_next"         @tag(ref)
++	ref:    string | *"main"          @tag(ref)
+ 	adk:    string | *"../adk"        @tag(adk)
+--- a/.veg/src.cue
++++ b/.veg/src.cue
+@@ -95,9 +95,9 @@
+ 		path: "~/.kube"
+ 	}
+ 
+-	google: env.#Secret & {
+-		@env(shh-google)
+-		name:   "google-api-key"
+-		source: "GOOGLE_API_KEY"
+-	}
++	// google: env.#Secret & {
++	// 	@env(shh-google)
++	// 	name:   "google-api-key"
++	// 	source: "GOOGLE_API_KEY"
++	// }
+ }
