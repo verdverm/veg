@@ -170,7 +170,7 @@ func RunErr() error {
 	return RootCmd.Execute()
 }
 
-const RootCustomHelp = `veg - the higher order framework
+const RootCustomHelp = `veg - the CUE centric developer experience
 
   Learn more at https://github.com/verdverm/veg/wiki
 

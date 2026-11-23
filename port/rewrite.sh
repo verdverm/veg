@@ -130,6 +130,13 @@ for f in $(find cmd/veg -type f -name '*.go'); do
     "$f"
 done
 
+# tagline
+for f in $(find cmd/veg design -type f \( -name '*.go' -o -name '*.cue' \)); do
+  sed -i '' \
+    -e 's|the higher order framework|the CUE centric developer experience|g' \
+    "$f"
+done
+
 # ---------- user-facing rebrand: author/homepage/update URLs ----------
 for f in $(find cmd/veg -type f -name '*.go'); do
   sed -i '' \

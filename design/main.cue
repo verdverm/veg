@@ -63,7 +63,7 @@ CLI: schema.Cli & {
 }
 
 RootCustomHelp: """
-veg - the higher order framework
+veg - the CUE centric developer experience
 
   Learn more at https://github.com/verdverm/veg/wiki
 
