@@ -110,5 +110,6 @@ for p in "$DST"/port/patches/*.patch; do
   # exit 1 = hunks already applied (benign on re-runs, --forward skips), 2 = real failure
   patch -s -p1 --forward -r "$DST/port/patches/.rejects" -d "$DST" < "$p" || [ $? -eq 1 ]
 done
+find "$DST" -name '*.orig' -not -path '*/port/patches/orig/*' -delete
 
 echo "copy done"

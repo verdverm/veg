@@ -1,0 +1,17 @@
+.veg/binaries.cue: builder container include list uses hof's directory layout.
+veg moved lib/ and flow/ under pkg/, and script/ is gone, so the dagger
+builder received a half-empty module (go.mod / missing package errors from
+inception). Hand edit, not expressible by the mechanical rewrite.
+
+Applied to copy.sh output before rewrite.sh. Idempotent via patch --forward.
+--- a/.veg/binaries.cue
++++ b/.veg/binaries.cue
+@@ -20,7 +20,7 @@
+ 				name: "veg-bin-src"
+ 				include: [
+ 					"go.mod", "go.sum", "cue.mod",
+-					"cmd", "lib", "flow", "script",
++					"cmd", "pkg",
+ 				]
+ 			}},
+ 		]

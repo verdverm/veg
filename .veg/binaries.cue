@@ -20,7 +20,7 @@ ctr: {
 				name: "veg-bin-src"
 				include: [
 					"go.mod", "go.sum", "cue.mod",
-					"cmd", "lib", "flow", "script",
+					"cmd", "pkg",
 				]
 			}},
 		]

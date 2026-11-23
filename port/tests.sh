@@ -67,6 +67,13 @@ if ! veg env sync dist- ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}; then
   FAILS=$((FAILS+1))
 fi
 
+# regression: builder container include list must use the veg layout
+# (cmd, pkg), else the dagger inception reports missing go packages.
+echo "== veg env sync veg-cli-darwin"
+if ! veg env sync veg-cli-darwin ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}; then
+  FAILS=$((FAILS+1))
+fi
+
 for p in "${RUNNABLE[@]}"; do
   echo "== go test $p"
   if ! go test "$p"; then
