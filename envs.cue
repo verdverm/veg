@@ -4,7 +4,16 @@ import (
 	"github.com/verdverm/veg/.veg:config"
 )
 
-veg: config
+let root = self
+
+// CUE only injects tags into entrypoint packages, not imported packages.
+// Bridge the platform tags into the imported repo configuration.
+veg: config & {
+	flags: {
+		goos: root.flags.goos
+		arch: root.flags.arch
+	}
+}
 
 flags: {
 	// TODO, scope these since we are now injecting the entire package at the repo root
