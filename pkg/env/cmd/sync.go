@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/verdverm/veg/cmd/veg/flags"
 	"github.com/verdverm/veg/pkg/env"
 	"github.com/verdverm/veg/pkg/env/dag"
@@ -54,6 +54,14 @@ type Syncable[T any] interface {
 }
 
 func maybeSync[T Syncable[T]](ctx context.Context, val T, dryRun bool) error {
+	if dryRun {
+		return nil
+	}
+	_, err := val.Sync(ctx)
+	return err
+}
+
+func maybeSyncFile(ctx context.Context, val *dagger.File, dryRun bool) error {
 	if dryRun {
 		return nil
 	}
@@ -149,7 +157,7 @@ func Sync(args []string, rflags flags.RootPflagpole, eflags flags.EnvPflagpole) 
 					err = err2
 					break
 				}
-				err = maybeSync(matchCtx, val, rflags.DryRun)
+				err = maybeSyncFile(matchCtx, val, rflags.DryRun)
 
 			case "exportDir":
 				val, _, err2 := d.HashExportDir(e.Value, eflags.NoCache)
@@ -168,7 +176,7 @@ func Sync(args []string, rflags flags.RootPflagpole, eflags flags.EnvPflagpole) 
 					err = err2
 					break
 				}
-				err = maybeSync(matchCtx, val, rflags.DryRun)
+				err = maybeSyncFile(matchCtx, val, rflags.DryRun)
 
 			case "exportImageFile":
 				val, _, err2 := d.HashExportImageFile(e.Value, eflags.NoCache)

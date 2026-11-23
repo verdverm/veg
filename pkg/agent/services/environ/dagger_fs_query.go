@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 type FileStat struct {

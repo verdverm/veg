@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/google/uuid"
-	"github.com/verdverm/veg/pkg/env/dag"
 	"github.com/kr/pretty"
+	"github.com/verdverm/veg/pkg/env/dag"
 )
 
 // Create from dir, FROM (containers and EIDs)

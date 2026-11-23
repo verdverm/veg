@@ -9,7 +9,7 @@ import (
 )
 
 go: {
-	#ver: string | *"1.25.5"
+	#ver: string | *"1.27.4"
 
 	#goos:   string | *flags.goos
 	#goarch: string | *flags.arch

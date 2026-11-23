@@ -9,14 +9,15 @@ import (
 	"strings"
 	"sync"
 
-	"dagger.io/dagger"
+	dagclient "dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"gorm.io/gorm"
 )
 
 type localEnviron struct {
 	mx  sync.RWMutex
 	ctx context.Context
-	dag *dagger.Client
+	dag *dagger.Query
 	db  *gorm.DB
 }
 
@@ -34,8 +35,12 @@ func Initialize(ctx context.Context, db *gorm.DB) (err error) {
 	if err != nil {
 		return err
 	}
-	LE.dag, err = dagger.Connect(ctx)
-	return err
+	conn, err := dagclient.Connect(ctx)
+	if err != nil {
+		return err
+	}
+	LE.dag = dagger.NewQuery(conn)
+	return nil
 }
 
 func Client() *localEnviron {

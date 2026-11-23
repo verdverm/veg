@@ -37,7 +37,9 @@ Long-form subsystem reference: NOTES.md (source map, internals, gotchas, decisio
 - all files associated with the porting effort (scripts, manifests, notes) live under `./port/...` - this directory is temporary and will eventually be deleted
 - the copy-rename phase must be resettable: able to wipe its output and rerun after fixing the porting scripts - keep the mechanical pass idempotent and its outputs clearly delimited so a reset never touches hand-written work
 - the full port cannot be done mechanically alone: the agent also edits files directly (API changes, refactors, fixups the scripts cannot express)
-- every hand edit is captured as a patch under `port/patches/...`; patches are a permanent, first-class part of the pipeline, applied in order as the last step of every run: reset = wipe outputs -> run scripts -> apply patches
+- every hand edit is captured as a patch under `port/patches/...`; patches are a permanent, first-class part of the pipeline, applied in order at the END of `port/rewrite.sh`: reset = wipe/copy outputs (`port/copy.sh`) -> mechanical rewrites (`port/rewrite.sh`) -> apply patches
+- generate patches against the POST-REWRITE tree, never the freshly copied hof sources; applying them before the module/path renames breaks their context
+- patch application must never silently ignore failed hunks: already-applied patches may be skipped on re-runs, but genuine hunk failures or patch exit statuses greater than 1 are fatal pipeline errors
 - expect MOST patches to survive to the end of the port - that is the normal case, not a backlog to burn down; when the port completes, the final run's output (scripts + patches) is the tree and `port/` is deleted
 - occasionally a fixup turns out to be a trivial deterministic transformation (e.g. a missed string rename) - it may be moved into the scripts and its patch dropped
 
@@ -115,6 +117,6 @@ The correct move is to get the aliasv2 grammar from the CUE spec (cuelang.org sp
 Final state of the repo, for the record:
 
 - Builds and runs: `go install ./cmd/veg` succeeds; `veg version`, `--help`, and subcommands work with veg branding, Go 1.27.4, CUE v0.18.0-rc.3.
-- Pipeline: `port/copy.sh`, `port/rewrite.sh`, `port/overlay/pkg/verinfo/` — the whole port is re-runnable from those.
+- Pipeline: `port/copy.sh` -> mechanical rewrites and ordered post-rewrite patches in `port/rewrite.sh`, plus `port/overlay/pkg/verinfo/`; the whole port is re-runnable from those.
 - Unfinished, left as-is: ~15 old-style pattern aliases (`[N=string]:`) across `schemas/`, `catalogs/gen/cuelm/`, `pkg/veg/testdata/` — `cue fix --exp=aliasv2` handled the value aliases but not these. Note: `cue.mod/module.cue` is currently set to `language.version: "v0.15.1"` from the fix run and will need to go back to `v0.18.0` as part of finishing that work.
 - No commits were made; all changes are working-tree only.

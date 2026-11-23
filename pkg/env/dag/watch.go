@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/fsnotify/fsnotify"
 )
 

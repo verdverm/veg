@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/hashicorp/go-envparse"
 	"github.com/verdverm/veg/pkg/env"
 )

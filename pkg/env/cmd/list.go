@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"github.com/olekukonko/tablewriter"
 	"github.com/verdverm/veg/cmd/veg/flags"
 	"github.com/verdverm/veg/pkg/env"
 	"github.com/verdverm/veg/pkg/yagu"
-	"github.com/olekukonko/tablewriter"
 )
 
 func List(args []string, rflags flags.RootPflagpole, eflags flags.EnvPflagpole) error {

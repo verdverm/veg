@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 type stepExecConfig struct {

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/verdverm/veg/pkg/env"
 )
 

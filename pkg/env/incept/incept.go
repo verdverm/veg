@@ -14,10 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 
-	"dagger.io/dagger/telemetry"
 	"github.com/dagger/dagger/dagql/dagui"
 	"github.com/dagger/dagger/dagql/idtui"
 	"github.com/dagger/dagger/engine/client"
+	telemetry "github.com/dagger/otel-go"
 )
 
 type InceptOptions struct {

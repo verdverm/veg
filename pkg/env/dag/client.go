@@ -6,14 +6,14 @@ import (
 	"sync"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/verdverm/veg/pkg/env"
 )
 
 type Dag struct {
 	mx  sync.RWMutex
 	ctx context.Context
-	dag *dagger.Client
+	dag *dagger.Query
 
 	// catalog allows us to consolidate references across CUE that might get duplicated
 	// as well as each entry holding the value, config, and go types for the entire life-cycle
@@ -23,7 +23,7 @@ type Dag struct {
 	watched []*hashCacheIndex
 }
 
-func NewClient(ctx context.Context, client *dagger.Client) (d *Dag, err error) {
+func NewClient(ctx context.Context, client *dagger.Query) (d *Dag, err error) {
 	d = &Dag{
 		ctx: ctx,
 		dag: client,

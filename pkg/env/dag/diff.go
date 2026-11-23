@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/verdverm/veg/pkg/env"
 	"github.com/verdverm/veg/pkg/yagu"
 )

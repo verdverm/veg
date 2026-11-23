@@ -4,19 +4,13 @@ CUE injects tags into entrypoint package files, but not imported dependency
 packages. Without this bridge, local and OS-only binary variants retain
 non-concrete GOOS and GOARCH values.
 
-Applied to copy.sh output before rewrite.sh. Idempotent via patch --forward.
-The explicit config import alias survives the subsequent package rename.
+Applied after rewrite.sh against the post-rewrite package and import names.
 --- a/envs.cue
 +++ b/envs.cue
-@@ -1,10 +1,19 @@
- package hof
- 
- import (
--	"github.com/hofstadter-io/hof/.veg:veg"
-+	config "github.com/hofstadter-io/hof/.veg:veg"
+@@ -6,4 +6,13 @@
  )
  
--veg
+-veg: config
 +let root = self
 +
 +// CUE only injects tags into entrypoint packages, not imported packages.

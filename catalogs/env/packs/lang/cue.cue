@@ -7,7 +7,7 @@ import (
 )
 
 cue: {
-	#ver: string | *"0.15.4"
+	#ver: string | *"0.18.0-rc.4"
 
 	#goos:   string | *flags.goos
 	#goarch: string | *flags.arch

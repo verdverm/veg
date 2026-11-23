@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"github.com/naoina/toml"
 	"gopkg.in/yaml.v3"
 

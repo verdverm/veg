@@ -20,7 +20,7 @@ const VEG_REGISTRY_DATA_VAR = "VEG_REGISTRY_DATA"
 
 // Dagger settings
 const VEG_DAGGER_ENGINE_DEFAULT_CONTAINER_NAME = "veg-dagger-engine"
-const VEG_DAGGER_ENGINE_DEFAULT_IMAGE = "registry.dagger.io/engine:v0.19.10"
+const VEG_DAGGER_ENGINE_DEFAULT_IMAGE = "registry.dagger.io/engine:v1.0.0-beta.28"
 const VEG_DAGGER_ENGINE_CONFIG_VAR = "VEG_DAGGER_ENGINE_CONFIG"
 const VEG_DAGGER_ENGINE_CONFIG_DEFAULT = `
 {

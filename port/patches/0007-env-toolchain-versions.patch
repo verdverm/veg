@@ -1,0 +1,52 @@
+diff --git a/catalogs/env/packs/containers/dagger.cue b/catalogs/env/packs/containers/dagger.cue
+index e1a6adb..5052d5a 100644
+--- a/catalogs/env/packs/containers/dagger.cue
++++ b/catalogs/env/packs/containers/dagger.cue
+@@ -5,7 +5,7 @@ import (
+ )
+ 
+ dagger: {
+-	#ver: string | *"0.19.8"
++	#ver: string | *"1.0.0-beta.28"
+ 
+ 	// hack for now to maintain consistency in pack.<tool>.cli.install
+ 	cli: install: [
+diff --git a/catalogs/env/packs/lang/cue.cue b/catalogs/env/packs/lang/cue.cue
+index 6ebfc1c..4b5a536 100644
+--- a/catalogs/env/packs/lang/cue.cue
++++ b/catalogs/env/packs/lang/cue.cue
+@@ -7,7 +7,7 @@ import (
+ )
+ 
+ cue: {
+-	#ver: string | *"0.15.4"
++	#ver: string | *"0.18.0-rc.4"
+ 
+ 	#goos:   string | *flags.goos
+ 	#goarch: string | *flags.arch
+diff --git a/catalogs/env/packs/lang/go.cue b/catalogs/env/packs/lang/go.cue
+index f226390..ce44170 100644
+--- a/catalogs/env/packs/lang/go.cue
++++ b/catalogs/env/packs/lang/go.cue
+@@ -9,7 +9,7 @@ import (
+ )
+ 
+ go: {
+-	#ver: string | *"1.25.5"
++	#ver: string | *"1.27.4"
+ 
+ 	#goos:   string | *flags.goos
+ 	#goarch: string | *flags.arch
+diff --git a/catalogs/env/packs/lang/node.cue b/catalogs/env/packs/lang/node.cue
+index d082a42..3cbe98d 100644
+--- a/catalogs/env/packs/lang/node.cue
++++ b/catalogs/env/packs/lang/node.cue
+@@ -5,7 +5,7 @@ import (
+ )
+ 
+ node: {
+-	#ver:  string | *"24.12.0"
++	#ver:  string | *"24.15.0"
+ 	#arch: "arm64" | "x64" | *flags.narch
+ 
+ 	caches: {

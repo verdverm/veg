@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/verdverm/veg/cmd/veg/flags"

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 func (le *localEnviron) WriteFile(envUri, path, content string) (nextUri string, err error) {

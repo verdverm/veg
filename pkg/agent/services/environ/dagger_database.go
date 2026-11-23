@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 const VEG_ENVIRONMENT_REGISTRY = "host.docker.internal:5000"

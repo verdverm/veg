@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 func (d *Dag) stepWithoutDefaultArgsHandler(c *dagger.Container, step cue.Value) (*dagger.Container, error) {

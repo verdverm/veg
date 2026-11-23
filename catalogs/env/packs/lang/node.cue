@@ -5,7 +5,7 @@ import (
 )
 
 node: {
-	#ver:  string | *"24.12.0"
+	#ver:  string | *"24.15.0"
 	#arch: "arm64" | "x64" | *flags.narch
 
 	caches: {

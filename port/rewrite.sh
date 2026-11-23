@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Rewrite phase: module path, CUE imports, #hof->#veg, Hof->Veg, .hof paths, GA removal.
 # Idempotent: all substitutions are rename-shaped and stable on re-run.
+# Patches are applied after all rewrites so their context matches the final tree.
 set -euo pipefail
 
 DST=~/verdverm/veg
@@ -234,5 +235,33 @@ GAFILES=$(find cmd/veg -type f -name '*.go')
 for f in $GAFILES; do
   sed -i '' -e '/ga\.SendCommandPath/d' "$f"
 done
+
+# ---------- patches: post-rewrite hand edits, applied in order ----------
+# A clean copy applies every new source hunk. On re-runs, --forward skips
+# patches already present in files copy.sh does not reset (go.mod/go.sum).
+# Genuine failed hunks are fatal; ignored previously-applied hunks are not.
+shopt -s nullglob
+for p in "$DST"/port/patches/*.patch; do
+  echo "patching $(basename "$p")"
+  rm -f "$DST/port/patches/.rejects"
+  set +e
+  output=$(patch -s -p1 --forward -r "$DST/port/patches/.rejects" -d "$DST" < "$p" 2>&1)
+  status=$?
+  set -e
+  if [ -n "$output" ]; then
+    printf '%s\n' "$output"
+  fi
+  if [ "$status" -ne 0 ]; then
+    if [ "$status" -gt 1 ] || ! grep -q 'Ignoring previously applied (or reversed) patch' <<< "$output" || grep -Eiq 'hunks? failed|malformed patch|can.t find file' <<< "$output"; then
+      echo "patch failed: $p" >&2
+      if [ -s "$DST/port/patches/.rejects" ]; then
+        cat "$DST/port/patches/.rejects" >&2
+      fi
+      exit 1
+    fi
+  fi
+done
+rm -f "$DST/port/patches/.rejects"
+find "$DST" \( -name '*.orig' -o -name '*.rej' \) -not -path '*/port/patches/orig/*' -delete
 
 echo "rewrite done"

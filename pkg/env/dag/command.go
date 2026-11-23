@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"golang.org/x/sync/errgroup"
 )
 

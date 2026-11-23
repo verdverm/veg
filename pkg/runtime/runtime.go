@@ -12,20 +12,21 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/load"
-	"dagger.io/dagger"
+	dagclient "dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 	"gorm.io/gorm"
 
 	"github.com/hofstadter-io/cinful"
+	"github.com/labstack/echo/v4"
 	"github.com/verdverm/veg/cmd/veg/flags"
-	"github.com/verdverm/veg/pkg/flow/flow"
 	"github.com/verdverm/veg/pkg/agent"
 	"github.com/verdverm/veg/pkg/cuetils"
 	"github.com/verdverm/veg/pkg/datamodel"
 	"github.com/verdverm/veg/pkg/env"
+	"github.com/verdverm/veg/pkg/flow/flow"
 	"github.com/verdverm/veg/pkg/gen"
 	"github.com/verdverm/veg/pkg/veg"
 	"github.com/verdverm/veg/pkg/yagu"
-	"github.com/labstack/echo/v4"
 )
 
 // This is the veg Runtime that backs most commands
@@ -36,7 +37,7 @@ type Runtime struct {
 	// internal service handlers
 	DB  *gorm.DB
 	API *echo.Echo
-	DAG *dagger.Client
+	DAG *dagger.Query
 
 	// original flags used to load the CUE
 	Flags flags.RootPflagpole
@@ -246,10 +247,11 @@ func (R *Runtime) DaggerInit() (err error) {
 	if userVal == "" {
 		os.Setenv(VEG_DAGGER_ENGINE_ENV_VAR, VEG_DAGGER_HOST)
 	}
-	R.DAG, err = dagger.Connect(R.Ctx)
+	conn, err := dagclient.Connect(R.Ctx)
 	if err != nil {
 		return fmt.Errorf("while connecting to dagger: %w", err)
 	}
+	R.DAG = dagger.NewQuery(conn)
 	return nil
 
 }

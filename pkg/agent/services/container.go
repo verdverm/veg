@@ -1,6 +1,6 @@
 package stores
 
-import "dagger.io/dagger"
+import dagger "dagger.io/dagger/core"
 
 // Abstract fileSys/execEnv backed by Dagger as a unified interface
 // for both REST and websocket handlers

@@ -5,7 +5,7 @@ import (
 )
 
 dagger: {
-	#ver: string | *"0.19.8"
+	#ver: string | *"1.0.0-beta.28"
 
 	// hack for now to maintain consistency in pack.<tool>.cli.install
 	cli: install: [

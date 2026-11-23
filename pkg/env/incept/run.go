@@ -20,11 +20,11 @@ import (
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/proto"
 
-	"dagger.io/dagger/telemetry"
 	"github.com/dagger/dagger/dagql/idtui"
 	"github.com/dagger/dagger/engine"
 	"github.com/dagger/dagger/engine/client"
 	enginetel "github.com/dagger/dagger/engine/telemetry"
+	telemetry "github.com/dagger/otel-go"
 )
 
 const (
@@ -103,11 +103,11 @@ func Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			fmt.Fprintln(stderr, "run canceled")
-			return idtui.ExitError{Code: 2}
+			return idtui.ExitError{OriginalCode: 2}
 		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return idtui.ExitError{Code: exitErr.ExitCode()}
+			return idtui.ExitError{OriginalCode: exitErr.ExitCode()}
 		}
 		return err
 	}

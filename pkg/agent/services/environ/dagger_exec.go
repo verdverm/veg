@@ -3,7 +3,7 @@ package environ
 import (
 	"fmt"
 
-	"dagger.io/dagger"
+	dagger "dagger.io/dagger/core"
 )
 
 type ExecRequest struct {

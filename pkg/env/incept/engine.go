@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"dagger.io/dagger/telemetry"
 	"github.com/dagger/dagger/dagql/dagui"
 	"github.com/dagger/dagger/engine"
 	"github.com/dagger/dagger/engine/client"
@@ -13,6 +12,7 @@ import (
 	"github.com/dagger/dagger/engine/distconsts"
 	"github.com/dagger/dagger/engine/slog"
 	enginetel "github.com/dagger/dagger/engine/telemetry"
+	telemetry "github.com/dagger/otel-go"
 	"github.com/verdverm/veg/pkg/env/incept/auth"
 
 	"github.com/dagger/dagger/util/cleanups"
@@ -86,7 +86,7 @@ func withEngine(
 			if opts.Debug {
 				slog.Error("failed to emit telemetry", "error", err)
 			}
-			Frontend.Opts().TelemetryError = err
+			Frontend.SetTelemetryError(err)
 		}))
 		cleanup.Add("close telemetry", func() error {
 			cleanupTelemetry(rerr)
@@ -111,7 +111,6 @@ func withEngine(
 			params.ImageLoaderBackend = backend
 		}
 
-		params.DisableHostRW = disableHostRW
 		// params.AllowedLLMModules = allowedLLMModules
 
 		params.CloudURLCallback = Frontend.SetCloudURL

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mechanical copy-rename: ~/hof/hof -> ~/verdverm/veg
 # Idempotent: wipes output dirs it owns, then re-copies. Hand-written files
-# outside these outputs are never touched. Patches applied separately.
+# outside these outputs are never touched. Patches run after rewrite.sh.
 set -euo pipefail
 
 SRC=~/hof/hof
@@ -80,7 +80,6 @@ if [ -d .veg/data ]; then mv .veg/data .veg-data.tmp; fi
 rm -rf .veg
 rsync -a "$SRC/.veg/" .veg/
 [ -d .veg-data.tmp ] && mv .veg-data.tmp .veg/data
-rm -f port/patches/.rejects
 
 # lib/hof -> pkg/veg (dir rename; hof.go -> veg.go)
 rm -rf "$DST/pkg/veg"
@@ -103,13 +102,5 @@ rsync -a --delete \
 
 # ---------- overlay: hand-written files owned by the port ----------
 rsync -a "$DST/port/overlay/" "$DST/"
-
-# ---------- patches: hand edits, applied in order ----------
-shopt -s nullglob
-for p in "$DST"/port/patches/*.patch; do
-  # exit 1 = hunks already applied (benign on re-runs, --forward skips), 2 = real failure
-  patch -s -p1 --forward -r "$DST/port/patches/.rejects" -d "$DST" < "$p" || [ $? -eq 1 ]
-done
-find "$DST" -name '*.orig' -not -path '*/port/patches/orig/*' -delete
 
 echo "copy done"
