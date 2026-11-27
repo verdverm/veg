@@ -17,12 +17,14 @@ Major port-porting tasks:
 
 ## Update ADK
 
-patches: ../adk
-latest: ../adk2
+- Current patched fork: `../adk`
+- Target v2 checkout: `../adk2`
+- Investigation: `docs/working/adk-port-report.md`
+- Implementation plan: `docs/working/adk-port-plan.md`
 
-- Investigate the current patches in local ADK fork (in particular there are modifications to the API/SDK to support the sandbox/dagger integration into ADK, and a custom session implementation so we can associate chat and env session history together in the database)
-- Investigate the latest ADK features, interfaces, subsystems
-- Make plan for updating existing veg code for updated ADK
+The port retains veg's custom session schema, Clone/Splice operations, and shared chat/environment history. It uses upstream OpenAI-compatible models, runner behavior, and plugins, with a minimal v2 patch only where the SDK surface requires it.
+
+Next: implement the plan, validate database migration and agent streaming, then remove the old fork.
 
 ## Port Docs
 

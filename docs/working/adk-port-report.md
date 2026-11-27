@@ -1,124 +1,118 @@
 # ADK Port - Investigation Report
 
-Status: investigation for the "Update ADK" task in `TASKS.md`.
-Checkouts examined:
+Status: investigation complete; implementation pending. The implementation sequence is in `docs/working/adk-port-plan.md`.
 
-- `~/verdverm/adk` (identical to `~/hof/adk`, same commit): the patched fork, branch `veg`, `v0.4.0-30-gbd45719` (`bd45719`)
-- `~/verdverm/adk2`: latest upstream, module `google.golang.org/adk/v2`, tag `v2.8.0` (HEAD slightly past, `eb2f3543`)
-- `veg` current pin: `google.golang.org/adk v0.3.0` via `replace => ../adk` (resolves to the patched fork above)
+## Baseline
 
-## 1. What the fork actually patches (vs upstream base `03705a53`, ~v0.4.0 + 11)
+- Current veg dependency: `google.golang.org/adk v0.3.0`, replaced by `../adk`.
+- Patched fork: `~/verdverm/adk`, branch `veg`, commit `bd45719` (`v0.4.0-30-gbd45719`). The `~/hof/adk` checkout is identical.
+- Target: `google.golang.org/adk/v2 v2.8.0`, developed through `~/verdverm/adk2`. The local checkout is at `eb2f3543`, 78 commits after the `v2.8.0` tag.
+- The fork comparison base is upstream commit `03705a53`; the `veg` branch contains 19 local commits.
 
-19 local commits on the `veg` branch. Grouped into patches:
+## Fork patch inventory and disposition
 
-### A. State correctness (multi-function-call deltas, delete-from-state)
+### A. Shared state deltas and state deletion
 
-<!-- user: state correctness is hopefully fixed, not sure about delete support -->
+The fork threads one state-delta map through model and tool callbacks with `NewCallbackContextWithDelta`, preventing function calls in the same turn from overwriting each other's deltas. ADK v2 now has this mechanism in `internal/context` and `internal/llminternal`, including artifact deltas. Do not carry this part of the fork forward.
 
-- `internal/context/callback_context.go`: adds `NewCallbackContextWithDelta(ctx, stateDelta)` - one shared stateDelta map per turn.
-- `internal/llminternal/base_flow.go`: threads the shared `stateDelta` through `callLLM`, after/on-model callbacks, `finalizeModelResponseEvent` (6 sites).
-- `internal/toolinternal/context.go`: uses the new constructor.
-- Delete-from-state semantics: nil / empty-string value in `State.Set` deletes the key - in `session/inmemory.go` and `session/database/session.go`, plus `trimTempDeltaState` / `updateSessionState` helpers.
-- New `internal/sessionutils/` package (`ExtractStateDeltas`, `MergeStates`) factored out of duplicated logic.
+The fork also treats nil and empty-string state values as deletion. ADK v2's in-memory and database `State.Set` implementations still assign values directly and do not implement deletion. Veg needs deletion for `SessionStateDel`, so its custom session service must own this behavior. Use nil as the deletion marker and preserve empty strings as valid values; cover app, user, and session state in tests.
 
-### B. `session.Service` interface changes - Clone + Splice + partial accumulation
+The fork's `internal/sessionutils` extraction and merge helpers have upstream v2 equivalents.
 
-<!-- this is the main change we are after -->
+### B. `session.Service` Clone/Splice and partial accumulation
 
-Interface changes to ADK: the public `session.Service` interface gains `Clone(ctx, Session) (Session, error)` and `Splice(ctx, Session, start, count, fill) (Session, error)`. These are modifications to the SDK surface and to the built-in implementations and examples; none of this code is used by the Dagger sandbox, which lives in veg.
+The fork adds these methods to the public `session.Service` interface:
 
-- `AppendEvent` gains partial-message accumulation (merge `Parts` + `StateDelta` into the last event when `Partial && same author`) in both in-memory and database implementations.
-- Tests in `session/inmemory_test.go`, `session/database/service_test.go`, `session/delete_test.go`.
+```go
+Clone(ctx context.Context, sess session.Session) (session.Session, error)
+Splice(ctx context.Context, sess session.Session, start, count int, fill session.Events) (session.Session, error)
+```
 
-### C. GORM database session service (`session/database/`)
+These operations are required by veg's REST and WebSocket session handlers. They support branching and time-travel workflows alongside the Dagger environment history; the sandbox implementation itself remains in veg.
 
-<!-- is this more than an in-repo example to make sure things compile? The real implementation we use is in our code -->
+ADK v2 does not expose Clone/Splice. Carry a minimal `../adk2` patch that extends the interface and keeps its built-in implementations compiling. Implement the real persistence semantics in veg's custom session service, including transactional event copying/replacement and correct ordering.
 
-Modifications and additions to the built-in GORM session implementation:
+The fork also accumulates partial messages in `AppendEvent`, merging content parts and state deltas into the previous event when the partial event and author match. Upstream v2 does not provide that behavior. Port it to the veg service and test streaming, retries, state updates, and final-event handling.
 
-- `databaseService` with `NewSessionService(dialector, opts...)`, `AutoMigrate`.
-- Fork addition `NewSessionServiceGorm(db *gorm.DB)` - reuse an already-open `*gorm.DB` (also on the `new-session-db` branch).
-- gorm models for sessions/events/app-user-state, dialector-aware JSON serializers (`gorm_datatypes.go`).
-- NOTE: this landed upstream around v0.3/v0.4; upstream v2 has since matured it (Postgres/Spanner/SQLite, `NewSessionServiceFromDB`, row locking, compaction persistence).
+### C. GORM session service
 
-### D. Runner: user-event yielding + finish injection
+The fork's `session/database` package contains a GORM service, JSON serializers, and `NewSessionServiceGorm` for reusing an existing database connection. Veg's real implementation already lives in `pkg/agent/services/session` and shares a `*gorm.DB` with environment persistence.
 
-<!-- user events / interrupts should be handled by ADK now -->
+Upstream v2 has a more mature `session/database` package with `NewSessionServiceFromDB`, migrations, locking, and compaction support. It is a useful API and testing reference, but it is not the persistence layer for veg. Retain a veg-owned schema so chat events, session state, environment history, cloning, and splicing can evolve together.
 
-- `runner/runner.go`: after `appendMessageToSession`, yields the user event to the client stream (with a fix for incorrect indexing).
-- Final-response events get `FinishReason = "STOP"`, `TurnComplete = true` in the runner; the equivalent block in `base_flow.go` `Flow.Run` is **commented out** (HEAD commit disabled it - it double-set finish against the debug REST session).
+### D. Runner user events and finish injection
 
-### E. Plugin subsystem (fork addition)
+The fork yields the persisted user event and injects final-response finish metadata. ADK v2 provides `runner.WithYieldUserMessage()` for the current LLM-agent node path, with tests for user-event state deltas. Use that option and remove the fork's runner modifications. Rely on v2 event finalization rather than reapplying the finish-injection patch; validate interruption and terminal-event behavior through the veg handlers.
 
-<!-- the question for me here is, what are we doing with the plugin system and functionacllmodifier? -->
+### E. Plugins and function-call modification
 
-- `plugin/` + `plugins/functioncallmodifier/` (used by veg) + `internal/plugininternal/` (PluginManager with ~13 hooks, plugin context).
-- Wired into `runner`, `agent`, `llminternal/base_flow`, `testutil`.
-- Biggest reconcile-or-replace area: upstream v2 now has its own first-class `plugin/` package with the same hook shape, including a built-in `functioncallmodifier` plugin.
+The fork adds a plugin manager and a `plugins/functioncallmodifier` package. ADK v2 now has a first-class `plugin` package and `plugin/functioncallmodifier`, configured through `runner.Config.PluginConfig`.
 
-### F. One-shot filesystem services
+Current veg code does not import or register the fork's plugin system, so there are no veg call sites to migrate. Do not carry the fork implementation. If function-call modification is needed, construct the upstream plugin and register it through the runner.
 
-<!-- these changes are likely just for the Session interface change -->
+### F. Filesystem memory and artifact services
 
-- `memory/filesystem.go` and `artifact/filesystem.go`: `FilesystemService(baseDir)` implementations. Self-contained.
+The fork adds self-contained filesystem-backed memory and artifact services. They are unrelated to the session interface changes.
 
-### G. `internal/httprr/` HTTP record/replay
+Veg does not need either service. The artifact service is only wired into runtime scaffolding and the runner; there are no artifact API workflows to preserve. Remove that plumbing and omit `runner.Config.ArtifactService`. Filesystem operations belong to the veg environment/sandbox, not a separate ADK artifact store. Drop the unused memory service and the empty `pkg/agent/services/artifact` scaffold.
 
-<!-- we don't need to be recording http here, I'm not sure I had any patches tied to this, would need more details -->
+### G. HTTP record/replay
 
-- Likely exists in newer upstream already; verify before carrying forward.
+`internal/httprr` exists upstream in v2 and supports ADK's own tests. It is internal test infrastructure, not a veg runtime dependency. No port is needed.
 
 ### H. Housekeeping
 
-<!-- we can ignore any AGENTS.md files, we can remake them later -->
+Ignore generated `AGENTS.md` files, ignore-rule changes, and other fork housekeeping. Dependency changes come from the v2 module and normal Go module tidy operations.
 
-- `.gitignore` additions, gorm deps in go.mod, generated `AGENTS.md` files (doc-only).
+## ADK v2 migration surface
 
-Patch A is an additional interface/behavior change: `NewCallbackContextWithDelta` threads one shared stateDelta map through multi-function-call turns.
+### Module and model APIs
 
-## 3. Latest ADK (v2.8.0): what changed since v0.3.0 (veg's pin)
+- Change imports and the local replacement from `google.golang.org/adk` to `google.golang.org/adk/v2`.
+- Replace `pkg/agent/models/openai.go` with upstream `model/openaimodel`, explicitly selecting `openaimodel.APIChatCompletions` for gateway compatibility.
+- Remove `pkg/agent/models/vertex.go`, the `model/gemini` import, and the Vertex provider branch. Veg's model configuration uses the generic OpenAI-compatible path, with credentials held by the user-run gateway.
+- A custom `model.LLM` would need `Capabilities() model.Capabilities`; using `openaimodel` avoids maintaining that implementation in veg.
 
-### Module / deps
-- Module path is now `google.golang.org/adk/v2` - every import and the `replace` must change.
-- go directive 1.26.10 (veg is already on 1.27.4, fine); genai v1.40 -> v1.77; new heavy deps: openai-go/v3, anthropic-sdk-go, gorm v1.31.2, a2a-go/v2, mcp go-sdk v1.8.
+### Agents and tools
 
-### Breaking API changes (checklist)
-1. `model.LLM` gains a required `Capabilities() Capabilities` method.
-2. `tool.Context` and `agent.CallbackContext` are GONE, unified into `agent.Context`; toolset `Tools(ctx agent.ReadonlyContext)`; all callback types take `agent.Context`.
-3. `session.NewEvent(invocationID)` -> `session.NewEvent(ctx, invocationID)`.
-4. `agent.Agent` now has an unexported `internal()` method - external code cannot implement it; must use constructors (`agent.New`, `llmagent.New`, `workflowagent.New`, `workflowagents/*`).
-5. Custom `session.Service` implementers must handle: `session.ErrNotFound` sentinel, JSON-tagged `Event` with new fields (`IsolationScope`, `Routes`, `RequestedInput`, `Output`, `NodeInfo`, `EventActions.Compaction`, `RequestedAuthConfigs`), and should pass `session/sessiontestsuite`.
-6. `llmagent.Config` gains `Mode`, `OutputArtifact`, `OnModelErrorCallbacks`, `OnToolErrorCallbacks`; callback signatures changed context type.
-7. `runner.Config` gains `PluginConfig`, `AutoCreateSession`, `Compaction`, `ContextCache`; `Run` is variadic `RunOption`; new `runner.NewInMemory`.
-8. `functiontool` handler signature: `func(tool.Context, ...)` -> `func(agent.Context, ...)`; config gains confirmation fields; new streaming function tool.
+- `tool.Context` and `agent.CallbackContext` are replaced by `agent.Context`; toolsets use `agent.ReadonlyContext`.
+- Update function-tool handlers, callbacks, `llmagent.Config`, `agenttool`, and MCP toolset construction to their v2 signatures.
+- External packages cannot implement `agent.Agent` directly because v2 adds an unexported interface method. Veg uses constructors, so no agent-interface reimplementation is required.
 
-### New subsystems relevant to veg
+### Sessions and events
 
-<!-- I assume we will still need a custom session, and likely the patch(es) to support the dagger/timetravelling - in short to have a custom DB schema to support our features -->
-- **`model/openaimodel`** - built-in OpenAI-compatible model: `openaimodel.NewModel(ctx, name, &openaimodel.ClientConfig{APIKey, BaseURL, API: openaimodel.APIChatCompletions, ...})`. This is exactly veg's "user-run gateway holds the credentials" decision; it can likely replace `pkg/agent/models/openai.go`.
-- **`plugin/`** upstream - same lifecycle-hook shape as the fork's Patch E, with built-ins `loggingplugin`, `retryandreflect`, `functioncallmodifier` (the fork plugin veg actually uses).
-- **`session/database`** upstream - GORM-backed `session.Service` with SQLite/Postgres/Spanner, `NewSessionServiceFromDB(db *gorm.DB)` (the fork's `NewSessionServiceGorm`, upstreamed in some form), `AutoMigrate`. Plus `session/sessiontestsuite` conformance tests and `session/compaction`.
-- **`workflow/` + `agent/workflowagent`** - node/graph engine with routing, typed schemas, HITL pause/resume. Potential future home for flow<->agent bridging; not required for the upgrade.
-- **`model/registry`** - name-pattern based LLM factories (`model.Register`, `model.NewLLM`).
-- **`platform/`** - injectable time/UUID seams; **`auth/`**, **`agentregistry/`**, **`client/agentengine`** - not needed now.
+- `session.NewEvent(invocationID)` becomes `session.NewEvent(ctx, invocationID)`.
+- Custom services must wrap `session.ErrNotFound` for missing sessions and satisfy `session/sessiontestsuite`.
+- Extend veg's event storage and JSON mapping for the complete v2 event shape, including `IsolationScope`, `Routes`, `RequestedInput`, `Output`, `NodeInfo`, and all `EventActions` fields such as compaction, tool confirmations, and requested auth configs.
+- Preserve Clone/Splice and partial accumulation in addition to the upstream service contract.
 
-## 4. veg's current ADK usage surface (what has to change)
+### Runner
 
-Import census across `pkg/agent`:
-- `session` (17 files), `model` (9), `tool` (8), `functiontool` (4), `mcptoolset` (3), `artifact` (3), `agent` (2), `agenttool`, `runner`, `model/gemini`, `agent/llmagent`.
+- `runner.Config` adds plugin, session creation, compaction, and context-cache configuration.
+- `Run` accepts variadic `RunOption` values; veg should pass `runner.WithYieldUserMessage()`.
+- The default model-call budget is 500 per invocation. Validate long-running sessions and set an explicit veg policy if that default is unsuitable.
 
-Touch points:
-- `pkg/agent/models/openai.go` - hand-rolled `model.LLM` via openai-go/v3 (OpenAI-compatible base URL). Add `Capabilities()` or replace with `model/openaimodel`. <!-- replace -->
-- `pkg/agent/models/vertex.go` - `model/gemini`; add `Capabilities()`. <!-- drop gemini specifics, only generic openai -->
-- `pkg/agent/agents/cue.go` - builds agents from CUE config via `llmagent.Config`, `agenttool`; uses `InstructionProvider`, tools, MCP. Uses constructors, so no `internal()` problem. Callback/tool context types change.
-- `pkg/agent/tools/*` - `functiontool` handlers with `tool.Context` -> `agent.Context`; `mcptoolset` users.
-- `pkg/agent/services/session/` - veg's custom session service (localSession, storage_session, service) -> decide: replace with upstream `session/database` SQLite, or port forward as a fork-patched tree (see plan). <!-- absolutely update, the entire point is that their DB is trash and does not support our needs -->
-- `pkg/agent/runtime/handlers/{common,api,ws}` - `runner.Config`, `session.Event` construction (`NewEvent(ctx, id)`), event iteration. <!-- ideally this can be improved -->
-- `pkg/agent/cmd/tui` - reads `session` types; mostly unaffected.
+### CUE configuration
 
-## 5. Risks / open questions
+The CUE schemas, concrete `.veg` configuration, decoded Go types, and agent/model builders must be updated as one contract. Remove the model provider switch, Gemini entries, and Gemini defaults; the remaining model shape supplies an ID and OpenAI-compatible gateway base URL. Keep agent configuration limited to the v2 capabilities veg uses, with environment settings remaining veg-specific. Validate by loading the CUE and constructing the default agents.
 
-- The fork adds `Clone`/`Splice` to the `session.Service` interface; upstream v2 does not have them. Porting forward means either a fork of adk/v2 carrying this interface change, or re-expressing the operations without the interface change. <!-- almost certainly need to carry this part of the patch forward -->
-- Patch A (shared stateDelta) may be partially fixed upstream by now - needs a behavioral check against v2 before re-porting.
-- Whether upstream's `session/database` matches veg's DB schema needs (chat + env session history in one DB) - veg's tables wrap gorm models directly; likely fine, but the veg `storage_session` mapping and `.veg/data` sqlite paths must be reconciled. <!-- I doubt very much we can use their schema, we want full customization anyway -->
-- Plugin subsystem: replacing the fork plugin with upstream `plugin/` changes where `functioncallmodifier` hooks are registered (runner `PluginConfig` vs fork's internal manager) - low risk, mechanical.
+## Current veg touch points
+
+The import census under `pkg/agent` is 17 files using `session`, 9 using `model`, 8 using `tool`, 4 using `functiontool`, 3 using `mcptoolset`, 3 using `artifact`, 2 using `agent`, and one each using `agenttool`, `runner`, `model/gemini`, and `agent/llmagent`. The artifact imports are removal targets rather than migration targets.
+
+The main implementation areas are:
+
+- `pkg/agent/models` and `pkg/agent/runtime/runtime.go`: model construction and removal of provider selection and artifact plumbing.
+- `pkg/agent/agents/cue.go` and `pkg/agent/tools`: agent, callback, function-tool, and MCP APIs.
+- `.veg`, `schemas/agentic`, and `pkg/agent/config`: CUE shapes, defaults, decoding, and model references.
+- `pkg/agent/services/session`: the custom GORM service, event mapping, Clone/Splice, partial accumulation, and tests.
+- `pkg/agent/runtime/handlers/common`: runner construction, user-event streaming, Clone/Splice calls, and state deletion.
+- `pkg/agent/runtime/handlers/{api,ws}` and `pkg/agent/cmd/tui`: updated event and session types plus streaming/error behavior.
+
+## Validation requirements
+
+- Run upstream session conformance tests against the veg service and retain dedicated Clone/Splice, deletion, and partial-stream tests.
+- Load the updated CUE and construct the default agents with valid model references.
+- Exercise a real agent session through the OpenAI-compatible gateway with streaming and tools, including MCP; do not create a mock-heavy harness for integration validation.
+- Confirm user events are yielded once, terminal and interrupted events retain correct metadata, and no fork finish injection is necessary.
+- Verify a fresh veg SQLite database supports sessions and environment history. Legacy migration is not required.
