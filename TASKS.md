@@ -11,9 +11,14 @@ Major port-porting tasks:
 
 - refactor `veg` agentic subsystem
 - rewrite the TUI
-- port `gdb`
+- embed/port `gdb` (separate project)
+- integrate SpiceDB for permissions, especially agents
+- regenerate AGENTS.md for project and core dependencies
 
 ## Update ADK
+
+patches: ../adk
+latest: ../adk2
 
 - Investigate the current patches in local ADK fork (in particular there are modifications to the API/SDK to support the sandbox/dagger integration into ADK, and a custom session implementation so we can associate chat and env session history together in the database)
 - Investigate the latest ADK features, interfaces, subsystems

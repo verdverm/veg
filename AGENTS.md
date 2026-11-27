@@ -91,7 +91,7 @@ Per-package keep/drop details: NOTES.md section 0 and 8.
 
 ## Gotchas
 
-- go.mod local replaces to preserve during the rename: `google.golang.org/adk => ../adk` and `github.com/dagger/dagger/engine/distconsts => ./lib/env/incept/distconsts`; the patched ADK checkout exists at `~/hof/adk` but NOT at `~/verdverm/adk` - it must be placed beside veg for the build to work
+- go.mod local replaces to preserve during the rename: `google.golang.org/adk => ../adk` and `github.com/dagger/dagger/engine/distconsts => ./lib/env/incept/distconsts`; the patched ADK checkout exists at `~/verdverm/adk`
 - all CUE imports use the Go module path - the module rename forces a sweep of every CUE import (schemas, catalogs, design, examples, .veg)
 - half-done rebrand already in hof: `VEG_*` env vars, `// [[ hof2veg ]]` markers, `.veg` CUE files with `package veg`
 - two distinct "schemas": repo-local `schemas/` dir vs external CUE module `github.com/hofstadter-io/schemas`
